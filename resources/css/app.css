@@ -1,0 +1,168 @@
+/* The full theme (tokens, light/dark palettes, typography, radii, brand
+   palette) lives in theme.css — see docs/04-design-system/theming.md.
+   Importing it here makes this file the single source of truth, reusable in
+   any other Tailwind v4 + shadcn project. */
+@import './theme.css';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+/* Gantt chart overrides for dark mode support */
+._3_ygE,
+._3ZbQT {
+    border-color: var(--border) !important;
+}
+
+._1nBOt,
+._34SS0 {
+    border-color: var(--border) !important;
+}
+
+._34SS0:nth-of-type(even) {
+    background-color: color-mix(in srgb, var(--muted) 50%, transparent) !important;
+}
+
+._2dZTy {
+    fill: var(--card) !important;
+}
+
+._2dZTy:nth-child(even) {
+    fill: var(--muted) !important;
+}
+
+._3rUKi,
+._RuwuK,
+._1rLuZ {
+    stroke: var(--border) !important;
+}
+
+._35nLX {
+    fill: var(--card) !important;
+    stroke: var(--border) !important;
+}
+
+._9w8d5,
+._2q1Kt {
+    fill: var(--foreground) !important;
+}
+
+._3zRJQ {
+    fill: var(--card) !important;
+}
+
+._3KcaM {
+    fill: var(--foreground) !important;
+}
+
+._3lLk3 {
+    color: var(--foreground) !important;
+}
+
+._2QjE6 {
+    color: var(--muted-foreground) !important;
+}
+
+._2TfEi {
+    color: var(--foreground) !important;
+}
+
+._3T42e {
+    background-color: var(--card) !important;
+    color: var(--card-foreground) !important;
+    box-shadow:
+        0 4px 6px -1px rgb(0 0 0 / 0.1),
+        0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+}
+
+/* WebKit browsers (Chrome, Safari, Edge) */
+input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
+/* Dark mode - make calendar icon white */
+.dark input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+}
+
+/* Light mode - make calendar icon dark */
+input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(0);
+}
+
+/* Firefox */
+input[type='date']::-moz-calendar-picker-indicator {
+    filter: invert(1);
+}
+
+.dark input[type='date']::-moz-calendar-picker-indicator {
+    filter: invert(1);
+}
+
+/* Dark mode select dropdown fixes */
+.dark [data-radix-select-content][data-state='open'] {
+    background-color: hsl(0, 0%, 3.9%) !important;
+    color: hsl(0, 0%, 98%) !important;
+}
+
+.dark [data-radix-select-item] {
+    color: hsl(0, 0%, 98%) !important;
+}
+
+.dark [data-radix-select-item][data-highlighted] {
+    background-color: hsl(0, 0%, 14.9%) !important;
+    color: hsl(0, 0%, 98%) !important;
+}
+
+/* Additional fallback for select dropdown in dark mode */
+.dark .bg-popover {
+    background-color: hsl(0, 0%, 3.9%) !important;
+    color: hsl(0, 0%, 98%) !important;
+}
+
+/* Native select option dark mode fix */
+.dark select option {
+    background-color: hsl(0, 0%, 14.9%) !important;
+    color: hsl(0, 0%, 98%) !important;
+}
+
+.dark select option:checked {
+    background-color: hsl(0, 0%, 20%) !important;
+}
+
+/*
+ * Collapsible open/close animation (milestone & group tables, etc.).
+ *
+ * Radix sets data-state on the content element and exposes the measured
+ * height as --radix-collapsible-content-height. Animating height from that
+ * variable keeps the motion smooth for any content size, and Radix's
+ * presence logic holds the node mounted until the closing animation ends.
+ */
+@keyframes collapsible-down {
+    from {
+        height: 0;
+        opacity: 0;
+    }
+    to {
+        height: var(--radix-collapsible-content-height);
+        opacity: 1;
+    }
+}
+
+@keyframes collapsible-up {
+    from {
+        height: var(--radix-collapsible-content-height);
+        opacity: 1;
+    }
+    to {
+        height: 0;
+        opacity: 0;
+    }
+}
+
+.collapsible-content[data-state='open'] {
+    animation: collapsible-down 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.collapsible-content[data-state='closed'] {
+    animation: collapsible-up 180ms ease-in;
+}

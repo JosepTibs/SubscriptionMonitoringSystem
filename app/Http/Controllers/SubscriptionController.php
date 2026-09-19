@@ -1,0 +1,180 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Office;
+use App\Models\Subscription;
+use App\Models\User;
+use App\Services\AuditTrail;
+use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class SubscriptionController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(): Response
+    {
+        $today = Carbon::today();
+
+        $subscriptions = Subscription::query()
+            ->with('office', 'owner')
+            ->orderBy('renewal_date')
+            ->get()
+            ->each(function (Subscription $subscription) use ($today): void {
+                $subscription->days_until_renewal = (int) $today->diffInDays($subscription->renewal_date, false);
+            });
+
+        return Inertia::render('subscriptions/index', [
+            'subscriptions' => $subscriptions,
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create(): Response
+    {
+        return Inertia::render('subscriptions/create', $this->formOptions());
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $subscription = Subscription::create($this->validateSubscription($request));
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Subscription Created',
+            auditable: $subscription,
+            newValues: $subscription->getAttributes(),
+            description: 'Created subscription "'.$subscription->name.'"',
+        );
+
+        return to_route('subscriptions.show', $subscription);
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(Subscription $subscription): Response
+    {
+        $subscription->load(['office', 'owner', 'renewals.reviewer']);
+
+        return Inertia::render('subscriptions/show', [
+            'subscription' => $subscription,
+            'days_until_renewal' => (int) Carbon::today()->diffInDays($subscription->renewal_date, false),
+        ]);
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Subscription $subscription): Response
+    {
+        return Inertia::render('subscriptions/edit', [
+            'subscription' => $subscription,
+            ...$this->formOptions(),
+        ]);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, Subscription $subscription): RedirectResponse
+    {
+        $oldValues = $subscription->only(array_keys($this->subscriptionRules()));
+
+        $subscription->fill($this->validateSubscription($request));
+        $subscription->save();
+
+        $changes = collect($subscription->getChanges())->except(['updated_at']);
+        $oldChanged = $changes
+            ->mapWithKeys(fn (mixed $value, string $key): array => [$key => $oldValues[$key] ?? null])
+            ->all();
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Subscription Updated',
+            auditable: $subscription,
+            oldValues: $oldChanged,
+            newValues: $changes->all(),
+            description: 'Updated subscription "'.$subscription->name.'"',
+        );
+
+        return to_route('subscriptions.show', $subscription);
+    }
+
+    /**
+     * Mark the specified subscription as cancelled.
+     */
+    public function cancel(Request $request, Subscription $subscription): RedirectResponse
+    {
+        $oldStatus = $subscription->getOriginal('status');
+
+        $subscription->update(['status' => 'cancelled']);
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Subscription Cancelled',
+            auditable: $subscription,
+            oldValues: ['status' => $oldStatus],
+            newValues: ['status' => 'cancelled'],
+            description: 'Cancelled subscription "'.$subscription->name.'"',
+        );
+
+        return to_route('subscriptions.show', $subscription);
+    }
+
+    /**
+     * Dropdown options shared by the create and edit forms.
+     *
+     * @return array<string, mixed>
+     */
+    private function formOptions(): array
+    {
+        return [
+            'offices' => Office::query()->orderBy('name')->get(),
+            'owners' => User::query()->orderBy('id')->get(),
+        ];
+    }
+
+    /**
+     * Validate the request against the subscription rules.
+     *
+     * @return array<string, mixed>
+     */
+    private function validateSubscription(Request $request): array
+    {
+        return $request->validate($this->subscriptionRules());
+    }
+
+    /**
+     * Validation rules for a subscription.
+     *
+     * @return array<string, ValidationRule|array<mixed>|string>
+     */
+    private function subscriptionRules(): array
+    {
+        return [
+            'provider' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
+            'cost' => ['required', 'numeric', 'min:0'],
+            'billing_interval' => ['required', 'integer', 'min:1'],
+            'billing_interval_unit' => ['required', 'in:month,year'],
+            'start_date' => ['required', 'date'],
+            'renewal_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'office_id' => ['nullable', 'integer', 'exists:offices,id'],
+            'owner_id' => ['nullable', 'integer', 'exists:users,id'],
+            'status' => ['required', 'in:active,expired,cancelled,suspended'],
+            'description' => ['nullable', 'string'],
+        ];
+    }
+}

@@ -1,0 +1,212 @@
+/*
+ * ============================================================================
+ *  THEME.CSS — Portable Design Tokens
+ * ============================================================================
+ *  This file is the SINGLE SOURCE OF TRUTH for the UI & color scheme.
+ *  It is intentionally self-contained so it can be copied into any other
+ *  project that uses:
+ *      - Tailwind CSS v4  (CSS-first configuration via `@theme`)
+ *      - A shadcn/ui style component layer (optional but expected)
+ *      - The `@tailwindcss/vite` plugin
+ *
+ *  To replicate in a fresh project:
+ *      1. Copy this file into `resources/css/theme.css`.
+ *      2. Import it from your global stylesheet BEFORE app-specific CSS:
+ *             @import 'tailwindcss';
+ *             @import './theme.css';
+ *      3. Wire up the appearance hook (see use-appearance hooks in this repo).
+ *      4. Optionally swap the PHCCI brand palette below for your own.
+ *
+ *  Palette model:
+ *      - `:root`  => LIGHT mode values (HSL)
+ *      - `.dark`  => DARK mode overrides (gated by the @custom-variant below)
+ *      - `@theme` => maps raw tokens (--primary, --card, ...) into Tailwind
+ *                    color utilities (bg-primary, text-card-foreground, ...)
+ *
+ *  Naming convention (<token> => usage):
+ *      --background                     => bg-background
+ *      --foreground                     => text-foreground
+ *      --primary   / --primary-foreground   => bg-primary  / text-primary-foreground
+ *      --card      / --card-foreground       => bg-card     / text-card-foreground
+ * ============================================================================
+ */
+
+@import 'tailwindcss';
+
+@plugin 'tailwindcss-animate';
+
+/* ---------------------------------------------------------------------------
+ * DARK VARIANT
+ * Tailwind v4 defines variants in CSS. `dark` mirrors the classic Tailwind v3
+ * class-based dark mode: any element (or an ancestor) carrying `.dark` flips
+ * these tokens off. The `.dark` selector below supplies the actual values.
+ * ------------------------------------------------------------------------- */
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+ * @theme — register fonts, radii and map raw tokens to Tailwind color names.
+ * The `--color-*` names power utilities like `bg-primary` / `text-muted`.
+ * ------------------------------------------------------------------------- */
+@theme {
+    /* --- Typography ------------------------------------------------------ */
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* --- Radii ----------------------------------------------------------- */
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    /* --- Surfaces -------------------------------------------------------- */
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    /* --- Brand / emphasis ------------------------------------------------ */
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    /* --- Inputs / focus -------------------------------------------------- */
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    /* --- Charts ---------------------------------------------------------- */
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    /* --- Sidebar --------------------------------------------------------- */
+    --color-sidebar: var(--sidebar-background);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    /* --- PHCCI auth brand palette ---------------------------------------- */
+    /* Single source of truth for the authentication screens. Fixed values so
+       login/register are always on-brand; replace or delete for other products. */
+    --color-auth-bg: #0a1128;
+    --color-auth-surface: #131f42;
+    --color-auth-foreground: #f4f6f9;
+    --color-auth-muted: #8c9a9e;
+    --color-auth-accent: #20e2cd;
+}
+
+/* ---------------------------------------------------------------------------
+ * BASE LAYER — default border-color.
+ * The default border color changed to `currentColor` in Tailwind CSS v4; these
+ * compatibility styles keep borders looking like Tailwind v3 by default.
+ * ------------------------------------------------------------------------- */
+@layer base {
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+/* ===========================================================================
+ * LIGHT MODE TOKENS
+ * =========================================================================== */
+:root {
+    --background: hsl(0, 0%, 100%);
+    --foreground: hsl(0, 0%, 3.9%);
+    --card: hsl(0, 0%, 100%);
+    --card-foreground: hsl(0, 0%, 3.9%);
+    --popover: hsl(0, 0%, 100%);
+    --popover-foreground: hsl(0, 0%, 3.9%);
+    --primary: hsl(168, 74%, 42%);
+    --primary-foreground: hsl(0, 0%, 98%);
+    --secondary: hsl(0, 0%, 96.1%);
+    --secondary-foreground: hsl(0, 0%, 9%);
+    --muted: hsl(0, 0%, 96.1%);
+    --muted-foreground: hsl(0, 0%, 45.1%);
+    --accent: hsl(0, 0%, 96.1%);
+    --accent-foreground: hsl(0, 0%, 9%);
+    --destructive: hsl(0, 84.2%, 60.2%);
+    --destructive-foreground: hsl(0, 0%, 98%);
+    --border: hsl(0, 0%, 92.8%);
+    --input: hsl(0, 0%, 89.8%);
+    --ring: hsl(168, 74%, 42%);
+    --chart-1: hsl(168, 74%, 42%);
+    --chart-2: hsl(168, 60%, 35%);
+    --chart-3: hsl(168, 50%, 28%);
+    --chart-4: hsl(180, 70%, 50%);
+    --chart-5: hsl(160, 65%, 38%);
+    --radius: 0.5rem;
+    --sidebar-background: hsl(0, 0%, 98%);
+    --sidebar-foreground: hsl(240, 5.3%, 30%);
+    --sidebar-primary: hsl(168, 74%, 42%);
+    --sidebar-primary-foreground: hsl(0, 0%, 98%);
+    --sidebar-accent: hsl(0, 0%, 94%);
+    --sidebar-accent-foreground: hsl(0, 0%, 30%);
+    --sidebar-border: hsl(0, 0%, 91%);
+    --sidebar-ring: hsl(168, 74%, 42%);
+}
+
+/* ===========================================================================
+ * DARK MODE TOKENS
+ * =========================================================================== */
+.dark {
+    --background: hsl(225, 62%, 10%);
+    --foreground: hsl(210, 28%, 95%);
+    --card: hsl(225, 55%, 18%);
+    --card-foreground: hsl(210, 28%, 95%);
+    --popover: hsl(225, 55%, 18%);
+    --popover-foreground: hsl(210, 28%, 95%);
+    --primary: hsl(168, 74%, 42%);
+    --primary-foreground: hsl(0, 0%, 98%);
+    --secondary: hsl(225, 55%, 22%);
+    --secondary-foreground: hsl(210, 28%, 95%);
+    --muted: hsl(225, 35%, 25%);
+    --muted-foreground: hsl(210, 12%, 65%);
+    --accent: hsl(225, 55%, 22%);
+    --accent-foreground: hsl(210, 28%, 95%);
+    --destructive: hsl(0, 84%, 60%);
+    --destructive-foreground: hsl(0, 0%, 98%);
+    --border: hsl(225, 45%, 28%);
+    --input: hsl(225, 45%, 28%);
+    --ring: hsl(168, 74%, 42%);
+    --chart-1: hsl(168, 74%, 42%);
+    --chart-2: hsl(168, 60%, 35%);
+    --chart-3: hsl(168, 50%, 28%);
+    --chart-4: hsl(180, 70%, 50%);
+    --chart-5: hsl(160, 65%, 38%);
+    --sidebar-background: hsl(225, 62%, 8%);
+    --sidebar-foreground: hsl(210, 28%, 85%);
+    --sidebar-primary: hsl(168, 74%, 42%);
+    --sidebar-primary-foreground: hsl(0, 0%, 98%);
+    --sidebar-accent: hsl(225, 55%, 20%);
+    --sidebar-accent-foreground: hsl(210, 28%, 85%);
+    --sidebar-border: hsl(225, 45%, 25%);
+    --sidebar-ring: hsl(168, 74%, 42%);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+}
