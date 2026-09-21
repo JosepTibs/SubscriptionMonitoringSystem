@@ -316,7 +316,7 @@ export default function UsersIndex() {
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold">Users</h1>
                     
-                        <Button onClick={() => setCreateOpen(true)}>
+                        <Button id="add-user-button" onClick={() => setCreateOpen(true)}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add User
                         </Button>

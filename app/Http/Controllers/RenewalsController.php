@@ -6,27 +6,9 @@ use App\Models\Subscription;
 use App\Services\AuditTrail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class RenewalsController extends Controller
 {
-    /**
-     * Show the renewal review form for a subscription.
-     */
-    public function create(Subscription $subscription): Response
-    {
-        $suggestedRenewalDate = $subscription->billing_interval_unit === 'month'
-            ? $subscription->renewal_date->copy()->addMonths($subscription->billing_interval)
-            : $subscription->renewal_date->copy()->addYears($subscription->billing_interval);
-
-        return Inertia::render('renewals/create', [
-            'subscription' => $subscription->load(['office', 'owner']),
-            'suggested_renewal_date' => $suggestedRenewalDate->toDateString(),
-            'suggested_cost' => $subscription->cost,
-        ]);
-    }
-
     /**
      * Record a renewal review decision for a subscription.
      */

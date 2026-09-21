@@ -68,9 +68,15 @@ class SubscriptionController extends Controller
     {
         $subscription->load(['office', 'owner', 'renewals.reviewer']);
 
+        $suggestedRenewalDate = $subscription->billing_interval_unit === 'month'
+            ? $subscription->renewal_date->copy()->addMonths($subscription->billing_interval)
+            : $subscription->renewal_date->copy()->addYears($subscription->billing_interval);
+
         return Inertia::render('subscriptions/show', [
             'subscription' => $subscription,
             'days_until_renewal' => (int) Carbon::today()->diffInDays($subscription->renewal_date, false),
+            'suggested_renewal_date' => $suggestedRenewalDate->toDateString(),
+            'suggested_cost' => $subscription->cost,
         ]);
     }
 

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Model_has_roles;
 use App\Models\Roles;
 use App\Models\User;
+use App\Services\AuditTrail;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -64,7 +66,7 @@ class UserController extends Controller
             'lname' => 'required|string|max:255',
             'sname' => 'nullable|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:8|confirmed',
             'role_id' => 'required|exists:roles,id',
         ]);
 
@@ -80,6 +82,16 @@ class UserController extends Controller
             'password' => bcrypt($validated['password']),
             'email_verified_at' => now(),
         ]);
+
+        $this->syncRole($user, (int) $validated['role_id']);
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'User Created',
+            auditable: $user,
+            newValues: collect($validated)->except('password')->all(),
+            description: 'Created user "'.$user->username.'"',
+        );
 
         return redirect()->route('users.index')->with('success', 'User created successfully.');
     }
@@ -136,11 +148,13 @@ class UserController extends Controller
             'lname' => 'required|string|max:255',
             'sname' => 'nullable|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'password' => 'nullable|string|min:8',
+            'password' => 'nullable|string|min:8|confirmed',
             'role_id' => 'required|exists:roles,id',
         ]);
 
         $this->validateRoleAssignment($validated);
+
+        $oldRole = $user->roles->first()?->id;
 
         $user->update([
             'username' => $validated['username'],
@@ -154,6 +168,17 @@ class UserController extends Controller
         if (! empty($validated['password'])) {
             $user->update(['password' => bcrypt($validated['password'])]);
         }
+
+        $this->syncRole($user, (int) $validated['role_id']);
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'User Updated',
+            auditable: $user,
+            oldValues: ['role_id' => $oldRole],
+            newValues: collect($validated)->except('password')->merge(['role_id' => $validated['role_id']])->all(),
+            description: 'Updated user "'.$user->username.'"',
+        );
 
         return redirect()->route('users.index')->with('success', 'User updated successfully.');
     }
@@ -184,6 +209,23 @@ class UserController extends Controller
         if ($role && strtolower($role->name) === 'superadmin' && ! auth()->user()?->hasRole('superadmin')) {
             abort(403, 'Only a Superadmin can assign the Superadmin role.');
         }
+    }
+
+    /**
+     * Write the user's role into the morph pivot table. Replaces any
+     * existing role so a demotion actually takes effect.
+     */
+    private function syncRole(User $user, int $roleId): void
+    {
+        Model_has_roles::where('model_type', User::class)->where('model_id', $user->id)->delete();
+
+        Model_has_roles::create([
+            'role_id' => $roleId,
+            'model_type' => User::class,
+            'model_id' => $user->id,
+        ]);
+
+        $user->unsetRelation('roles');
     }
 
     public function destroy(User $user)

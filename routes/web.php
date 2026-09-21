@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\OfficeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RenewalsController;
 use App\Http\Controllers\SubscriptionController;
@@ -19,12 +20,16 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('subscriptions/{subscription}/cancel', [SubscriptionController::class, 'cancel'])
         ->name('subscriptions.cancel');
 
-    Route::get('subscriptions/{subscription}/renewals/create', [RenewalsController::class, 'create'])
-        ->name('subscriptions.renewals.create');
     Route::post('subscriptions/{subscription}/renewals', [RenewalsController::class, 'store'])
         ->name('subscriptions.renewals.store');
 
     Route::resource('users', UserController::class)->except(['destroy']);
+
+    Route::resource('offices', OfficeController::class)->except(['show', 'destroy']);
+    Route::patch('offices/{office}/toggle-active', [OfficeController::class, 'toggleActive'])
+        ->name('offices.toggle-active');
+    Route::patch('offices/{office}/move', [OfficeController::class, 'move'])
+        ->name('offices.move');
 });
 
 require __DIR__.'/settings.php';

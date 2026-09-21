@@ -1,0 +1,14 @@
+
+   PASS  Tests\Feature\OfficeTest
+  ✓ offices index is displayed in chain order                                                                   21.50s  
+  ✓ office can be created                                                                                        1.56s  
+  ✓ office name must be unique                                                                                   0.99s  
+  ✓ office can be updated                                                                                        0.61s  
+  ✓ office can be deactivated and reactivated                                                                    0.76s  
+  ✓ office can be moved down in the chain                                                                        0.73s  
+  ✓ first office cannot move up and last cannot move down                                                        0.63s  
+  ✓ inactive offices cannot be reordered                                                                         0.61s  
+
+  Tests:    8 passed (32 assertions)
+  Duration: 29.07s
+

@@ -1,3 +1,4 @@
+import RenewalReviewSheet from '@/components/renewal-review-sheet';
 import StatusBadge from '@/components/status-badge';
 import RenewalTimelineMock from '@/components/renewal-timeline-mock';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,17 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
     );
 }
 
-export default function ShowSubscription({ subscription, days_until_renewal }: { subscription: Subscription; days_until_renewal: number }) {
+export default function ShowSubscription({
+    subscription,
+    days_until_renewal,
+    suggested_renewal_date,
+    suggested_cost,
+}: {
+    subscription: Subscription;
+    days_until_renewal: number;
+    suggested_renewal_date: string;
+    suggested_cost: string;
+}) {
     const { patch, processing } = useForm();
 
     const cancel = () => {
@@ -47,9 +58,11 @@ export default function ShowSubscription({ subscription, days_until_renewal }: {
 
                     <div className="flex items-center gap-2">
                         {subscription.status !== 'cancelled' && (
-                            <Link href={route('subscriptions.renewals.create', subscription.id)}>
-                                <Button>Review Renewal</Button>
-                            </Link>
+                            <RenewalReviewSheet
+                                subscription={subscription}
+                                suggested_renewal_date={suggested_renewal_date}
+                                suggested_cost={suggested_cost}
+                            />
                         )}
 
                         <Link href={route('subscriptions.edit', subscription.id)}>

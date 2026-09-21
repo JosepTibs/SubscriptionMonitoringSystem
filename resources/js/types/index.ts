@@ -32,6 +32,9 @@ export interface Office {
     id: number;
     name: string;
     description: string | null;
+    sort_order: number;
+    is_active: boolean;
+    subscriptions_count?: number;
 }
 
 export interface Renewal {

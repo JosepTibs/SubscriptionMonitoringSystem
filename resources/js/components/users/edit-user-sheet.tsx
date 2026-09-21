@@ -8,7 +8,6 @@ import { type FormEvent, useState } from 'react';
 
 interface Role { id: number; name: string }
 
-
 export interface SheetUserData {
     id: number;
     username: string;
@@ -18,14 +17,12 @@ export interface SheetUserData {
     sname: string;
     email: string;
     role_id: number | null;
-    
 }
 
 interface CreateUserSheetProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     roles: Role[];
-    
     /** When provided, the sheet edits this user instead of creating a new one. */
     user?: SheetUserData | null;
 }
@@ -53,7 +50,6 @@ export default function CreateUserSheet({ open, onOpenChange, roles, user }: Cre
             password: password || undefined,
             password_confirmation: passwordConfirmation || undefined,
             role_id: roleId,
-            
         };
 
         const options = {
@@ -81,10 +77,10 @@ export default function CreateUserSheet({ open, onOpenChange, roles, user }: Cre
                 side="right"
                 className="w-full sm:max-w-lg overflow-y-auto"
                 onCloseAutoFocus={(event) => {
-                    // Move focus back to the page (e.g. the "Add User" button) so it
+                    // Move focus back to the page (e.g. the "Edit details" button) so it
                     // never lingers on the sheet input while Radix applies aria-hidden.
                     event.preventDefault();
-                    (document.getElementById('add-user-button') ?? document.body).focus();
+                    (document.getElementById('edit-user-button') ?? document.body).focus();
                 }}
             >
                 <SheetHeader>
@@ -99,7 +95,7 @@ export default function CreateUserSheet({ open, onOpenChange, roles, user }: Cre
                     <div className="space-y-2">
                         <Label htmlFor="username">Username</Label>
                         <Input
-                            id="username" name="username" autoComplete="off"
+                            id="username"
                             value={username}
                             onChange={(e) => setUserName(e.target.value)}
                             placeholder="Alwayswannafly"
@@ -180,7 +176,7 @@ export default function CreateUserSheet({ open, onOpenChange, roles, user }: Cre
                     <div className="space-y-2">
                         <Label htmlFor="password">Password</Label>
                         <Input
-                            id="password"  name="password" autoComplete="new-password"
+                            id="password"
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -195,7 +191,7 @@ export default function CreateUserSheet({ open, onOpenChange, roles, user }: Cre
                     <div className="space-y-2">
                         <Label htmlFor="password_confirmation">Confirm Password</Label>
                         <Input
-                            id="password_confirmation" name="password" autoComplete="new-password"
+                            id="password_confirmation"
                             type="password"
                             value={passwordConfirmation}
                             onChange={(e) => setPasswordConfirmation(e.target.value)}
@@ -203,9 +199,7 @@ export default function CreateUserSheet({ open, onOpenChange, roles, user }: Cre
                         />
                     </div>
 
-                   
-
-                {/* Role */}
+                    {/* Role */}
                     <div className="space-y-2">
                         <Label htmlFor="role">Role</Label>
                         <Select value={roleId} onValueChange={setRoleId}>
