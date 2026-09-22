@@ -11,19 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('renewal_steps', function (Blueprint $table) {
+        Schema::create('approval_request_steps', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('renewal_id')->constrained('renewals')->cascadeOnDelete();
-            $table->foreignId('office_id')->constrained('offices')->restrictOnDelete();
-            $table->unsignedInteger('step_order');
-            $table->enum('status', ['received', 'approved', 'forwarded', 'returned'])->default('received');
+            $table->foreignId('approval_request_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('office_id')->constrained()->restrictOnDelete();
+            $table->unsignedInteger('step_order')->default(0);   // order within the snapshot
+            $table->string('status')->default('pending');        // pending | received | approved | forwarded | returned
             $table->foreignId('acted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('acted_at')->nullable();
             $table->text('remarks')->nullable();
             $table->timestamps();
-
-            $table->unique(['renewal_id', 'office_id', 'step_order']);
-            $table->index(['renewal_id', 'step_order']);
+            $table->unique(['approval_request_id', 'office_id']);
         });
     }
 
@@ -32,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('renewal_steps');
+        Schema::dropIfExists('approval_request_steps');
     }
 };

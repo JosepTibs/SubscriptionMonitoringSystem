@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\SubscriptionFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Subscription extends Model
 {
-    //
+    /** @use HasFactory<SubscriptionFactory> */
+    use HasFactory;
 
     protected $fillable =
         [
@@ -22,6 +25,7 @@ class Subscription extends Model
             'office_id',
             'owner_id',
             'status',
+            'approval_flow_id',
             'description',
         ];
 
@@ -38,6 +42,16 @@ class Subscription extends Model
     public function renewals(): HasMany
     {
         return $this->hasMany(Renewal::class);
+    }
+
+    public function approvalFlow(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalFlow::class, 'approval_flow_id');
+    }
+
+    public function approvalRequests(): HasMany
+    {
+        return $this->hasMany(ApprovalRequest::class)->latest();
     }
 
     protected function casts(): array

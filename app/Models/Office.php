@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\OfficeFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,8 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Office extends Model
 {
-    /** @use HasFactory<\Database\Factories\OfficeFactory> */
+    /** @use HasFactory<OfficeFactory> */
     use HasFactory;
+
     protected $fillable = [
         'name',
         'description',
@@ -39,10 +41,5 @@ class Office extends Model
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
-    }
-
-    public function renewalSteps(): HasMany
-    {
-        return $this->hasMany(RenewalStep::class);
     }
 }

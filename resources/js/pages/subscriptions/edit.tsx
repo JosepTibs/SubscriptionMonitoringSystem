@@ -1,6 +1,6 @@
 import Heading from '@/components/heading';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem, type Office, type Subscription } from '@/types';
+import { type ApprovalFlow, type BreadcrumbItem, type Office, type Subscription } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import SubscriptionForm, { type SubscriptionFormData } from './partials/subscription-form';
@@ -9,9 +9,10 @@ interface EditProps {
     subscription: Subscription;
     offices: Office[];
     owners: { id: number; name: string }[];
+    approval_flows: ApprovalFlow[];
 }
 
-export default function EditSubscription({ subscription, offices, owners }: EditProps) {
+export default function EditSubscription({ subscription, offices, owners, approval_flows }: EditProps) {
     const { data, setData, transform, put, processing, errors } = useForm<SubscriptionFormData>({
         provider: subscription.provider,
         name: subscription.name,
@@ -22,6 +23,7 @@ export default function EditSubscription({ subscription, offices, owners }: Edit
         renewal_date: subscription.renewal_date,
         office_id: subscription.office_id ? String(subscription.office_id) : 'none',
         owner_id: subscription.owner_id ? String(subscription.owner_id) : 'none',
+        approval_flow_id: subscription.approval_flow_id ? String(subscription.approval_flow_id) : 'none',
         status: subscription.status,
         description: subscription.description ?? '',
     });
@@ -33,6 +35,7 @@ export default function EditSubscription({ subscription, offices, owners }: Edit
             ...payload,
             office_id: payload.office_id === 'none' ? null : payload.office_id,
             owner_id: payload.owner_id === 'none' ? null : payload.owner_id,
+            approval_flow_id: payload.approval_flow_id === 'none' ? null : payload.approval_flow_id,
         }));
 
         put(route('subscriptions.update', subscription.id));
@@ -61,6 +64,7 @@ export default function EditSubscription({ subscription, offices, owners }: Edit
                     onSubmit={submit}
                     offices={offices}
                     owners={owners}
+                    approvalFlows={approval_flows}
                     subscription={subscription}
                 />
             </div>

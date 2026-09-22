@@ -1,12 +1,12 @@
 import RenewalReviewSheet from '@/components/renewal-review-sheet';
+import RenewalTimeline from '@/components/renewal-timeline';
 import StatusBadge from '@/components/status-badge';
-import RenewalTimelineMock from '@/components/renewal-timeline-mock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { billingIntervalLabel, formatDate, formatPeso } from '@/lib/format';
-import { type BreadcrumbItem, type Subscription } from '@/types';
+import { type ApprovalRequest, type BreadcrumbItem, type Subscription } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -25,11 +25,13 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function ShowSubscription({
     subscription,
+    approval_requests,
     days_until_renewal,
     suggested_renewal_date,
     suggested_cost,
 }: {
     subscription: Subscription;
+    approval_requests: ApprovalRequest[];
     days_until_renewal: number;
     suggested_renewal_date: string;
     suggested_cost: string;
@@ -77,7 +79,7 @@ export default function ShowSubscription({
                     </div>
                 </div>
 
-                <RenewalTimelineMock />
+                <RenewalTimeline request={approval_requests?.[0] ?? null} />
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <Card>

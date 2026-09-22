@@ -37,6 +37,59 @@ export interface Office {
     subscriptions_count?: number;
 }
 
+export interface ApprovalFlowStep {
+    id: number;
+    approval_flow_id: number;
+    office_id: number;
+    step_order: number;
+    office?: Office;
+}
+
+export interface ApprovalFlow {
+    id: number;
+    name: string;
+    description: string | null;
+    is_default: boolean;
+    steps: ApprovalFlowStep[];
+}
+
+export type ApprovalRequestStepStatus = 'pending' | 'received' | 'approved' | 'forwarded' | 'returned';
+
+export interface ApprovalRequestStep {
+    id: number;
+    approval_request_id: number;
+    office_id: number;
+    step_order: number;
+    status: ApprovalRequestStepStatus;
+    acted_by: number | null;
+    acted_at: string | null;
+    remarks: string | null;
+    office?: Office | null;
+    actor?: User | null;
+}
+
+export type ApprovalRequestType = 'procurement' | 'renewal';
+
+export type ApprovalRequestStatus = 'in_progress' | 'completed' | 'returned' | 'rejected';
+
+export interface ApprovalRequest {
+    id: number;
+    subscription_id: number;
+    type: ApprovalRequestType;
+    renewal_id: number | null;
+    approval_flow_id: number | null;
+    current_office_id: number | null;
+    status: ApprovalRequestStatus;
+    decided_by: number | null;
+    decided_at: string | null;
+    remarks: string | null;
+    created_at: string;
+    flow?: ApprovalFlow | null;
+    current_office?: Office | null;
+    renewal?: Renewal | null;
+    steps?: ApprovalRequestStep[];
+}
+
 export interface Renewal {
     id: number;
     subscription_id: number;
@@ -62,11 +115,14 @@ export interface Subscription {
     renewal_date: string;
     office_id: number | null;
     owner_id: number | null;
-    status: 'active' | 'expired' | 'cancelled' | 'suspended';
+    approval_flow_id: number | null;
+    status: 'active' | 'expired' | 'cancelled' | 'suspended' | 'pending_approval';
+    approval_flow?: ApprovalFlow | null;
     description: string | null;
     office?: Office | null;
     owner?: User | null;
     renewals?: Renewal[];
+    approval_requests?: ApprovalRequest[];
     days_until_renewal?: number;
     [key: string]: unknown;
 }

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type Office, type Subscription } from '@/types';
+import { type ApprovalFlow, type Office, type Subscription } from '@/types';
 import { type FormEventHandler } from 'react';
 
 export type SubscriptionFormData = {
@@ -16,6 +16,7 @@ export type SubscriptionFormData = {
     renewal_date: string;
     office_id: string | null;
     owner_id: string | null;
+    approval_flow_id: string | null;
     status: string;
     description: string;
 };
@@ -29,12 +30,28 @@ interface SubscriptionFormProps {
     onSubmit: FormEventHandler;
     offices: Office[];
     owners: { id: number; name: string }[];
+    approvalFlows: ApprovalFlow[];
     subscription?: Subscription;
+    showApprovalFlow?: boolean;
+    extra?: React.ReactNode;
 }
 
-export default function SubscriptionForm({ data, setData, errors, processing, submitLabel, onSubmit, offices, owners }: SubscriptionFormProps) {
+export default function SubscriptionForm({
+    data,
+    setData,
+    errors,
+    processing,
+    submitLabel,
+    onSubmit,
+    offices,
+    owners,
+    approvalFlows,
+    showApprovalFlow = true,
+    extra,
+}: SubscriptionFormProps) {
     return (
         <form onSubmit={onSubmit} className="space-y-6">
+            {extra}
             <div className="grid gap-6 md:grid-cols-2">
                 <div className="grid gap-2">
                     <Label htmlFor="name">Subscription name</Label>
@@ -165,10 +182,35 @@ export default function SubscriptionForm({ data, setData, errors, processing, su
                             <SelectItem value="expired">Expired</SelectItem>
                             <SelectItem value="cancelled">Cancelled</SelectItem>
                             <SelectItem value="suspended">Suspended</SelectItem>
+                            <SelectItem value="pending_approval">Pending Approval</SelectItem>
                         </SelectContent>
                     </Select>
                     <InputError message={errors.status} />
                 </div>
+
+                {showApprovalFlow && (
+                    <div className="grid gap-2">
+                        <Label htmlFor="approval_flow_id">Approval flow</Label>
+                        <Select
+                            value={data.approval_flow_id ?? ''}
+                            onValueChange={(value) => setData('approval_flow_id', value)}
+                        >
+                            <SelectTrigger id="approval_flow_id" className="w-full">
+                                <SelectValue placeholder="Default flow" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">— Default flow —</SelectItem>
+                                {approvalFlows.map((flow) => (
+                                    <SelectItem key={flow.id} value={String(flow.id)}>
+                                        {flow.name}
+                                        {flow.is_default ? ' (default)' : ''}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.approval_flow_id} />
+                    </div>
+                )}
 
                 <div className="grid gap-2 md:col-span-2">
                     <Label htmlFor="description">Remarks / notes</Label>

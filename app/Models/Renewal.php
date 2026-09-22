@@ -4,14 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Renewal extends Model
 {
     //
     protected $fillable = [
         'subscription_id',
-        'current_office_id',
         'previous_renewal_date',
         'new_renewal_date',
         'previous_cost',
@@ -25,16 +23,6 @@ class Renewal extends Model
     public function subscription(): BelongsTo
     {
         return $this->belongsTo(Subscription::class);
-    }
-
-    public function currentOffice(): BelongsTo
-    {
-        return $this->belongsTo(Office::class, 'current_office_id');
-    }
-
-    public function steps(): HasMany
-    {
-        return $this->hasMany(RenewalStep::class)->orderBy('step_order');
     }
 
     public function reviewer(): BelongsTo

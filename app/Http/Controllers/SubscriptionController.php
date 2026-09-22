@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalFlow;
+use App\Models\ApprovalRequest;
 use App\Models\Office;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\ApprovalChain;
 use App\Services\AuditTrail;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,15 +52,49 @@ class SubscriptionController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $subscription = Subscription::create($this->validateSubscription($request));
+        $validated = $request->validate([
+            ...$this->subscriptionRules(),
+            'intake_mode' => ['required', 'in:approved,for_approval'],
+            // required_if is deliberately NOT used: omitting a flow id falls
+            // back to the default flow in the transaction below.
+            'approval_flow_id' => ['nullable', 'integer', 'exists:approval_flows,id'],
+        ]);
 
-        AuditTrail::record(
-            user: $request->user(),
-            action: 'Subscription Created',
-            auditable: $subscription,
-            newValues: $subscription->getAttributes(),
-            description: 'Created subscription "'.$subscription->name.'"',
-        );
+        [$subscription, $forApproval] = DB::transaction(function () use ($request, $validated): array {
+            $forApproval = $validated['intake_mode'] === 'for_approval';
+            $flow = null;
+
+            if ($forApproval) {
+                $flow = ($validated['approval_flow_id'] ?? null) !== null
+                    ? ApprovalFlow::findOrFail($validated['approval_flow_id'])
+                    : ApprovalFlow::defaultFlow();
+
+                abort_unless($flow !== null, 422, 'No default approval flow exists - set one first.');
+
+                $validated['status'] = 'pending_approval';
+                unset($validated['intake_mode']);
+            } else {
+                unset($validated['intake_mode']);
+            }
+
+            $subscription = Subscription::create($validated);
+
+            if ($forApproval) {
+                $this->createProcurementRequest($subscription, $flow, $request->user());
+            }
+
+            return [$subscription, $forApproval];
+        });
+
+        if (! $forApproval) {
+            AuditTrail::record(
+                user: $request->user(),
+                action: 'Subscription Created',
+                auditable: $subscription,
+                newValues: $subscription->getAttributes(),
+                description: 'Created subscription "'.$subscription->name.'"',
+            );
+        }
 
         return to_route('subscriptions.show', $subscription);
     }
@@ -66,7 +104,16 @@ class SubscriptionController extends Controller
      */
     public function show(Subscription $subscription): Response
     {
-        $subscription->load(['office', 'owner', 'renewals.reviewer']);
+        $subscription->load([
+            'office',
+            'owner',
+            'renewals.reviewer',
+            'approvalRequests.flow',
+            'approvalRequests.currentOffice',
+            'approvalRequests.renewal',
+            'approvalRequests.steps.office',
+            'approvalRequests.steps.actor',
+        ]);
 
         $suggestedRenewalDate = $subscription->billing_interval_unit === 'month'
             ? $subscription->renewal_date->copy()->addMonths($subscription->billing_interval)
@@ -74,6 +121,7 @@ class SubscriptionController extends Controller
 
         return Inertia::render('subscriptions/show', [
             'subscription' => $subscription,
+            'approval_requests' => $subscription->approvalRequests,
             'days_until_renewal' => (int) Carbon::today()->diffInDays($subscription->renewal_date, false),
             'suggested_renewal_date' => $suggestedRenewalDate->toDateString(),
             'suggested_cost' => $subscription->cost,
@@ -149,6 +197,7 @@ class SubscriptionController extends Controller
         return [
             'offices' => Office::query()->orderBy('name')->get(),
             'owners' => User::query()->orderBy('id')->get(),
+            'approval_flows' => ApprovalFlow::query()->orderBy('name')->get(),
         ];
     }
 
@@ -179,8 +228,29 @@ class SubscriptionController extends Controller
             'renewal_date' => ['required', 'date', 'after_or_equal:start_date'],
             'office_id' => ['nullable', 'integer', 'exists:offices,id'],
             'owner_id' => ['nullable', 'integer', 'exists:users,id'],
-            'status' => ['required', 'in:active,expired,cancelled,suspended'],
+            'status' => ['required', 'in:active,expired,cancelled,suspended,pending_approval'],
+            'approval_flow_id' => ['nullable', 'integer', 'exists:approval_flows,id'],
             'description' => ['nullable', 'string'],
         ];
+    }
+
+    private function createProcurementRequest(Subscription $subscription, ApprovalFlow $flow, User $user): ApprovalRequest
+    {
+        $approvalRequest = ApprovalChain::start($subscription, $flow, ApprovalRequest::TYPE_PROCUREMENT);
+        $approvalRequest->load('currentOffice');
+
+        AuditTrail::record(
+            user: $user,
+            action: 'Subscription Submitted for Approval',
+            auditable: $subscription,
+            newValues: [
+                'status' => 'pending_approval',
+                'approval_flow' => $flow->name,
+                'current_office' => $approvalRequest->currentOffice?->name,
+            ],
+            description: 'Submitted subscription "'.$subscription->name.'" for approval via flow "'.$flow->name.'"',
+        );
+
+        return $approvalRequest;
     }
 }

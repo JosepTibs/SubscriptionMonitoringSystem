@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, CreditCard, Folder, LayoutGrid, User2, BriefcaseBusiness } from 'lucide-react';
+import { BookOpen, CreditCard, Folder, LayoutGrid, User2, BriefcaseBusiness, ActivityIcon, ChartBar } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -14,9 +14,9 @@ const mainNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'Users',
-        url: '/users',
-        icon: User2,
+        title: 'Flow',
+        url: '/approval-flows',
+        icon: ChartBar,
     },
     {
         title: 'Subscriptions',
@@ -28,20 +28,38 @@ const mainNavItems: NavItem[] = [
         url: '/offices',
         icon: BriefcaseBusiness,
     },
+    {
+        title: 'Activity Logs',
+        url: '/activity-logs',
+        icon: ActivityIcon,
+    },
 ];
 
 const footerNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        url: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
+        title: 'Users',
+        url: '/users',
+        icon: User2,
     },
     {
-        title: 'Documentation',
-        url: 'https://laravel.com/docs/starter-kits',
-        icon: BookOpen,
+        title: "Profile",
+        url: '/profile',
+        icon: User2,
     },
+    // {
+    //     title: 'Notifications',
+    //     url: '/notifications',
+    //     method: 'get',
+    //     icon: Bell,
+    // },
+    // {
+    //     title: 'Log Out',
+    //     url: '/logout',
+    //     method: 'post',
+    //     icon: LogOut,
+    // },
 ];
+
 
 export function AppSidebar() {
     return (
