@@ -1,12 +1,13 @@
+import ApprovalActions from '@/components/approval-actions';
 import RenewalReviewSheet from '@/components/renewal-review-sheet';
+import RenewalTimeline from '@/components/renewal-timeline';
 import StatusBadge from '@/components/status-badge';
-import RenewalTimelineMock from '@/components/renewal-timeline-mock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { billingIntervalLabel, formatDate, formatPeso } from '@/lib/format';
-import { type BreadcrumbItem, type Subscription } from '@/types';
+import { type ApprovalRequest, type BreadcrumbItem, type Subscription } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -25,16 +26,20 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function ShowSubscription({
     subscription,
+    approval_requests,
     days_until_renewal,
     suggested_renewal_date,
     suggested_cost,
 }: {
     subscription: Subscription;
+    approval_requests: ApprovalRequest[];
     days_until_renewal: number;
     suggested_renewal_date: string;
     suggested_cost: string;
 }) {
     const { patch, processing } = useForm();
+
+    const activeRequest = approval_requests?.find((request) => request.status === 'in_progress') ?? null;
 
     const cancel = () => {
         if (window.confirm(`Cancel "${subscription.name}"? Its status will be set to cancelled.`)) {
@@ -77,7 +82,19 @@ export default function ShowSubscription({
                     </div>
                 </div>
 
-                <RenewalTimelineMock />
+                <RenewalTimeline request={activeRequest ?? approval_requests?.[0] ?? null} />
+
+                {activeRequest && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                        <div>
+                            <p className="text-sm font-medium">Waiting for approval</p>
+                            <p className="text-muted-foreground text-xs">
+                                Currently at {activeRequest.current_office?.name ?? 'the next office'}. Approve it here, forward it on, or return it.
+                            </p>
+                        </div>
+                        <ApprovalActions request={activeRequest} />
+                    </div>
+                )}
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <Card>

@@ -98,44 +98,39 @@ input[type='date']::-moz-calendar-picker-indicator {
     filter: invert(1);
 }
 
-/* Dark mode select dropdown fixes */
+/* Dark mode select dropdown fixes (UPDATED to adopt dynamic theme colors) */
 .dark [data-radix-select-content][data-state='open'] {
-    background-color: hsl(0, 0%, 3.9%) !important;
-    color: hsl(0, 0%, 98%) !important;
+    background-color: var(--popover) !important;
+    color: var(--popover-foreground) !important;
 }
 
 .dark [data-radix-select-item] {
-    color: hsl(0, 0%, 98%) !important;
+    color: var(--popover-foreground) !important;
 }
 
 .dark [data-radix-select-item][data-highlighted] {
-    background-color: hsl(0, 0%, 14.9%) !important;
-    color: hsl(0, 0%, 98%) !important;
+    background-color: var(--secondary) !important;
+    color: var(--primary) !important; /* Highlights selections in your custom brand gold or radiant purple */
 }
 
 /* Additional fallback for select dropdown in dark mode */
 .dark .bg-popover {
-    background-color: hsl(0, 0%, 3.9%) !important;
-    color: hsl(0, 0%, 98%) !important;
+    background-color: var(--popover) !important;
+    color: var(--popover-foreground) !important;
 }
 
 /* Native select option dark mode fix */
 .dark select option {
-    background-color: hsl(0, 0%, 14.9%) !important;
-    color: hsl(0, 0%, 98%) !important;
+    background-color: var(--card) !important;
+    color: var(--card-foreground) !important;
 }
 
 .dark select option:checked {
-    background-color: hsl(0, 0%, 20%) !important;
+    background-color: var(--secondary) !important;
 }
 
 /*
  * Collapsible open/close animation (milestone & group tables, etc.).
- *
- * Radix sets data-state on the content element and exposes the measured
- * height as --radix-collapsible-content-height. Animating height from that
- * variable keeps the motion smooth for any content size, and Radix's
- * presence logic holds the node mounted until the closing animation ends.
  */
 @keyframes collapsible-down {
     from {

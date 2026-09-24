@@ -52,7 +52,8 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
                 <SheetHeader>
                     <SheetTitle>Review Renewal — {subscription.name}</SheetTitle>
                     <SheetDescription>
-                        Record a decision for this subscription's upcoming renewal. Nothing is renewed automatically.
+                        Record a decision for this subscription's upcoming renewal. Renewed and pending decisions travel the approval chain and only apply once the final
+                        office approves; a cancelled decision applies immediately.
                     </SheetDescription>
                 </SheetHeader>
 

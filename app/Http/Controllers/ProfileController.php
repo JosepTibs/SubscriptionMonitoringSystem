@@ -39,7 +39,6 @@ class ProfileController extends Controller
                 'sname' => $user->sname,
                 'name' => $user->name,
                 'email' => $user->email,
-                'avatar' => $user->avatar,
                 'created_at' => $user->created_at?->format('F d, Y'),
                 'updated_at' => $user->updated_at?->format('F d, Y g:i A'),
                 'email_verified_at' => $user->email_verified_at?->format('F d, Y'),

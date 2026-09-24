@@ -2,24 +2,25 @@
 
 namespace App\Models;
 
+use Database\Factories\ApprovalFlowStepFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class RenewalStep extends Model
+class ApprovalFlowStep extends Model
 {
+    /** @use HasFactory<ApprovalFlowStepFactory> */
+    use HasFactory;
+
     protected $fillable = [
-        'renewal_id',
+        'approval_flow_id',
         'office_id',
         'step_order',
-        'status',
-        'acted_by',
-        'acted_at',
-        'remarks',
     ];
 
-    public function renewal(): BelongsTo
+    public function flow(): BelongsTo
     {
-        return $this->belongsTo(Renewal::class);
+        return $this->belongsTo(ApprovalFlow::class, 'approval_flow_id');
     }
 
     public function office(): BelongsTo
@@ -27,16 +28,10 @@ class RenewalStep extends Model
         return $this->belongsTo(Office::class);
     }
 
-    public function actor(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'acted_by');
-    }
-
     protected function casts(): array
     {
         return [
             'step_order' => 'integer',
-            'acted_at' => 'datetime',
         ];
     }
 }

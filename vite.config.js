@@ -10,6 +10,7 @@ export default defineConfig({
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],
             ssr: 'resources/js/ssr.jsx',
+            resolve: { dedupe: ['react','react-dom'] },
             refresh: true,
         }),
         react(),

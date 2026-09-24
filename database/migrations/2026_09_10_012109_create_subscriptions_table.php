@@ -22,7 +22,8 @@ return new class extends Migration
             $table->date('renewal_date');
             $table->foreignId('office_id')->nullable()->constrained('offices')->nullOnDelete();
             $table->foreignId('owner_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->enum('status', ['active', 'expired', 'cancelled', 'suspended'])->default('active');
+            $table->enum('status', ['active', 'expired', 'cancelled', 'suspended', 'pending_approval'])->default('active');
+            $table->foreignId('approval_flow_id')->nullable()->constrained()->nullOnDelete();
             $table->text('description')->nullable();
             $table->timestamps();
         });
