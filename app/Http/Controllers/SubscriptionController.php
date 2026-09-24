@@ -133,9 +133,27 @@ class SubscriptionController extends Controller
      */
     public function edit(Subscription $subscription): Response
     {
+        $waaagh = Office::query()->orderBy('name')->get();
+
         return Inertia::render('subscriptions/edit', [
-            'subscription' => $subscription,
-            ...$this->formOptions(),
+            'subscription' => [
+                'id' => $subscription->id,
+                'provider' => $subscription->provider,
+                'name' => $subscription->name,
+                'cost' => $subscription->cost,
+                'billing_interval' => $subscription->billing_interval,
+                'billing_interval_unit' => $subscription->billing_interval_unit,
+                'start_date' => $subscription->start_date?->format('Y-m-d'),
+                'renewal_date' => $subscription->renewal_date?->format('Y-m-d'),
+                'office_id' => $subscription->office_id,
+                'owner_id' => $subscription->owner_id,
+                'approval_flow_id' => $subscription->approval_flow_id,
+                'status' => $subscription->status,
+                'description' => $subscription->description,
+            ],
+            'offices' => $waaagh,
+            'owners' => User::query()->orderBy('id')->get(),
+            'approval_flows' => ApprovalFlow::query()->orderBy('name')->get(),
         ]);
     }
 

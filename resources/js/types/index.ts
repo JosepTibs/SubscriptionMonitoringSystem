@@ -84,6 +84,7 @@ export interface ApprovalRequest {
     decided_at: string | null;
     remarks: string | null;
     created_at: string;
+    subscription?: Subscription | null;
     flow?: ApprovalFlow | null;
     current_office?: Office | null;
     renewal?: Renewal | null;

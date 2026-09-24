@@ -16,6 +16,7 @@ class DashboardController extends Controller
     {
         $today = Carbon::today();
         $inThirtyDays = $today->copy()->addDays(30);
+        $inSixtyDays = $today->copy()->addDays(60);
 
         $baseQuery = Subscription::query()->whereNot('status', 'cancelled');
 
@@ -32,7 +33,7 @@ class DashboardController extends Controller
             'total_cost' => (string) (clone $baseQuery)->sum('cost'),
         ];
 
-        $dueSoon = Subscription::query()
+        $dueInOneMonth = Subscription::query()
             ->with(['office', 'owner'])
             ->where('status', 'active')
             ->where('renewal_date', '<=', $inThirtyDays->toDateString())
@@ -43,9 +44,21 @@ class DashboardController extends Controller
                 $subscription->days_until_renewal = $today->diffInDays($subscription->renewal_date, false);
             });
 
+        $dueInTwoMonths = Subscription::query()
+            ->with(['office', 'owner'])
+            ->where('status', 'active')
+            ->where('renewal_date', '<=', $inSixtyDays->toDateString())
+            ->orderBy('renewal_date')
+            ->limit(10)
+            ->get()
+            ->each(function (Subscription $subscription) use ($today): void {
+                $subscription->days_until_renewal = $today->diffInDays($subscription->renewal_date, false);
+            });
+
         return Inertia::render('dashboard', [
             'stats' => $stats,
-            'dueSoon' => $dueSoon,
+            'dueInOneMonth' => $dueInOneMonth,
+            'dueInTwoMonths' => $dueInTwoMonths,
         ]);
     }
 }

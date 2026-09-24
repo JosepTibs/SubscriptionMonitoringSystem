@@ -1,10 +1,38 @@
 # Implementation Plan — Approval Flows, Subscription Intake & Renewal Chain
 
-> Companion to `PRD.md`. Covers the generalized approval machinery (procurement
-> + renewals), named office flows, and the remaining P2 items.
+> Companion to `PRD.md` (not present in this repo yet). Covers the generalized
+> approval machinery (procurement + renewals), named office flows, and the
+> remaining P2 items.
 > Stack: Laravel 12 + Inertia (React) + Tailwind/shadcn. Conventions follow
 > `SubscriptionController` / `UserController` (validate → act → `AuditTrail::record`
 > → redirect with flash).
+
+---
+
+## 0. Status at a glance
+
+> Last updated: 2026-09-23 · branch `Milestone4`.
+> This table is the single source of truth for progress — update the **Status**
+> column as steps land, and put anything new in **§12 Backlog / additions**
+> instead of rewriting the milestones. §9 keeps the original build order.
+> As-built decisions that differ from the sketches below are logged in **§11**.
+
+| # | Milestone | Status | Evidence in the repo | Left to do |
+| --- | --- | --- | --- | --- |
+| 1 | Flows CRUD + `subscriptions.approval_flow_id` | ✅ Done | `ApprovalFlowController`, `resources/js/pages/approval-flows/*`, `tests/Feature/ApprovalFlowTest.php`, `ApprovalFlowModelTest.php` | — |
+| 2 | Status + two-path intake | ✅ Done | `SubscriptionController@store` (`intake_mode`), `tests/Feature/SubscriptionIntakeTest.php` | — |
+| 3 | Chain runtime | ✅ Done (as-built: §11.1–§11.5) | `app/Services/ApprovalChain.php`, `app/Http/Controllers/ApprovalRequestController.php`, routes `approval-requests.{approve,forward,return}`, `tests/Feature/ApprovalChainTest.php` | — |
+| 4 | Renewal wiring | ✅ Done (as-built: §11.6) | `RenewalsController@store` → `ApprovalChain::start(TYPE_RENEWAL)`, `tests/Feature/RenewalApprovalTest.php` | — |
+| 5 | Queue + real stepper | ⬜ **Next** | trail done: `resources/js/components/renewal-timeline.tsx` reads `approval_request_steps` | `approvals/index` page + controller/route + sidebar entry + Approve/Forward/Return actions; optional dashboard KPI |
+| 6 | Cleanup | 🟡 Mostly done | `RenewalStep` model, `create_renewal_steps_table` migration and `renewals.current_office_id` already removed (no references left in `app/`, `database/`, `tests/`) | final Pint + full suite + `npm run build` pass |
+
+**Next up:** §8 approvals queue. The runtime is finished and tested, but **no
+screen calls it yet** — `subscriptions/show` renders the trail read-only, so a
+`pending_approval` subscription or a renewal proposal cannot be advanced from the
+UI until the queue/actions land (§12.5).
+
+Verified at the last full run: **74 tests passed / 390 assertions**
+(`php artisan test --compact`), `vendor/bin/pint` clean, `npm run build` green.
 
 ---
 
@@ -130,6 +158,8 @@ Schema::create('approval_request_steps', function (Blueprint $table) {
 
 ## 4. Milestone 1 — Flows admin CRUD
 
+**Status:** ✅ Done — `ApprovalFlowController` + `resources/js/pages/approval-flows/*`, covered by `ApprovalFlowTest` and `ApprovalFlowModelTest`.
+
 **Routes** (auth group):
 
 ```php
@@ -167,6 +197,8 @@ step ordering, set-default exclusivity, office uniqueness per flow, audit rows.
 
 ## 5. Milestone 2 — Intake: two-path subscription creation
 
+**Status:** ✅ Done — `intake_mode` radio on `subscriptions/create.tsx`, snapshot via `ApprovalChain::start`; `SubscriptionIntakeTest` covers both paths, the default-flow fallback and the "no flow" block.
+
 `SubscriptionController@store` / `create` accept:
 
 ```php
@@ -191,6 +223,8 @@ UI: "Approval" section on `subscriptions/create.tsx` — radio toggle
 ---
 
 ## 6. Milestone 3 — Chain runtime: forward / approve / return
+
+**Status:** ✅ Done — `app/Http/Controllers/ApprovalRequestController.php` + `app/Services/ApprovalChain.php` (shared engine, §11.4); 12 tests in `tests/Feature/ApprovalChainTest.php`. Two rules were reconciled during implementation: authorization (§11.1) and the completion trigger (§11.2). The routes below use `{approval_request}` instead of `{request}` (§11.3).
 
 **`ApprovalRequestController`** (new) with routes:
 
@@ -227,6 +261,8 @@ wrong-office 403, audit assertions.
 
 ## 7. Milestone 4 — Renewal wiring
 
+**Status:** ✅ Done — `RenewalsController@store` resolves the flow before writing, opens `ApprovalRequest(type: renewal, renewal_id)` + snapshot for `renewed`/`pending`, and applies `cancelled` immediately. The former direct subscription update is gone (now `ApprovalChain::complete`, §11.2). 5 tests in `tests/Feature/RenewalApprovalTest.php`; §11.6 records the "no flow configured" behavior and §11.7 the side-sheet copy change.
+
 - `RenewalsController@store` (used by the renewal side sheet on
   `subscriptions/show`): after creating the `Renewal`, for decisions
   `renewed`/`pending` → create `ApprovalRequest(type: renewal, renewal_id)`
@@ -241,43 +277,180 @@ wrong-office 403, audit assertions.
 
 ## 8. Milestone 5 — Screens
 
-| Screen | Work |
-| --- | --- |
-| `subscriptions/create` / `edit` | Intake toggle + flow select |
-| `subscriptions/show` | Real trail stepper from `approval_request_steps` — replace `renewal-timeline-mock.tsx` with `RenewalTimeline.tsx` (done / current / todo / returned states, actor + timestamp + remarks) |
-| **new** `approvals/index` | Queue: `in_progress` requests at my office (type filter), Approve / Forward / Return actions with remarks |
-| **new** `approval-flows/*` | Flows admin CRUD (milestone 1) |
-| Dashboard | Optional KPI: pending-approval count + queue link |
+**Status:** ⬜ **Next (the active step).** Intake toggle, flows CRUD and the real
+trail already exist from earlier milestones; the queue and the chain actions are
+what remain — and until the actions exist, chains cannot be advanced from the UI.
+
+| Screen | Work | Status |
+| --- | --- | --- |
+| `subscriptions/create` / `edit` | Intake toggle + flow select | ✅ Done in milestone 2 |
+| `subscriptions/show` | Real trail stepper from `approval_request_steps` — replace `renewal-timeline-mock.tsx` with `RenewalTimeline.tsx` (done / current / todo / returned states, actor + timestamp + remarks) | 🟡 Trail done (`renewal-timeline.tsx`, mock deleted); still needs the Approve / Forward / Return actions |
+| **new** `approvals/index` | Queue: `in_progress` requests at my office (type filter), Approve / Forward / Return actions with remarks | ⬜ **Next** — no page, controller, route or sidebar entry exists yet |
+| **new** `approval-flows/*` | Flows admin CRUD (milestone 1) | ✅ Done |
+| Dashboard | Optional KPI: pending-approval count + queue link | ⬜ Open → §12.6 |
 
 Shared component: `resources/js/components/approval-stepper.tsx` — renders the
 `----0-----0------0----0` line from a request's steps.
+
+> As built: `resources/js/components/renewal-timeline.tsx` already renders every
+> trail state (done / current / todo / returned, actor, timestamp, remarks) from
+> `approval_request_steps`, so no separate `approval-stepper.tsx` was extracted
+> (§11.8). The queue page should reuse it plus one shared action component.
+> "At my office" cannot be derived yet — see §12.4 / §11.1.
 
 ---
 
 ## 9. Build order & definition of done
 
-| # | Milestone | Done when |
-| --- | --- | --- |
-| 1 | Flows CRUD + `subscriptions.approval_flow_id` | CRUD end-to-end, default-flow exclusivity, tests green |
-| 2 | Status + two-path intake | Direct vs for-approval creation with snapshot; tests green |
-| 3 | Chain runtime | All §6 rules enforced; full coverage; audits written |
-| 4 | Renewal wiring | Renewals route through chain; completion applies changes |
-| 5 | Queue + real stepper | Office approvers see their queue + live trail; mock removed |
-| 6 | Cleanup | Drop `renewal_steps` model/migration + `renewals.current_office_id`; Pint clean; full suite + `npm run build` green |
+Per-milestone status lives in **§0** (single source of truth) so the two tables
+cannot drift; this one keeps the original order and definition of done.
+
+| # | Milestone | Done when | Status |
+| --- | --- | --- | --- |
+| 1 | Flows CRUD + `subscriptions.approval_flow_id` | CRUD end-to-end, default-flow exclusivity, tests green | ✅ Done |
+| 2 | Status + two-path intake | Direct vs for-approval creation with snapshot; tests green | ✅ Done |
+| 3 | Chain runtime | All §6 rules enforced; full coverage; audits written | ✅ Done (§11.1–§11.3 cover the enforced-rule adjustments) |
+| 4 | Renewal wiring | Renewals route through chain; completion applies changes | ✅ Done |
+| 5 | Queue + real stepper | Office approvers see their queue + live trail; mock removed | ⬜ **Next** — mock removed, queue pending |
+| 6 | Cleanup | Drop `renewal_steps` model/migration + `renewals.current_office_id`; Pint clean; full suite + `npm run build` green | 🟡 Drops done; final verification pass pending |
 
 Per-change workflow: `vendor/bin/pint --dirty --format agent`, feature test for
 the change, `npm run build`, full `php artisan test --compact` before moving on.
+
+> The full suite only moves as a whole once per milestone — run it detached
+> (e.g. redirect `php artisan test --compact` to a log and poll) because a run
+> takes ~2½ minutes, which exceeds a 30-second shell limit.
 
 ---
 
 ## 10. Edge cases checklist
 
-- [ ] Office deactivated mid-flight → skipped on next forward, history intact
-- [ ] Flow edited mid-flight → in-flight snapshots unchanged
-- [ ] Flow referenced → protected from delete; only future requests affected
-- [ ] No default flow exists → for-approval intake blocked with a helpful
-      message; admin must set one first
-- [ ] Subscription deleted → requests cascade-delete; audit logs keep history
-- [ ] Last-step forward without final approval → blocked
-- [ ] `pending_approval` subscriptions excluded from dashboard "active spend"
-      and due-soon (verify in `DashboardController`)
+- [x] Office deactivated mid-flight → skipped on next forward, history intact
+      (`ApprovalChainTest`: "skips deactivated offices when forwarding and keeps
+      their history intact")
+- [ ] Flow edited mid-flight → in-flight snapshots unchanged — **guaranteed by
+      design** (steps are copied in `ApprovalChain::start`) but not yet proven by
+      a test → §12.2
+- [x] Flow referenced → protected from delete; only future requests affected — no
+      `destroy` route is registered for flows, and every `approval_flow_id` FK is
+      `nullOnDelete`, so history is never orphaned
+- [x] No default flow exists → for-approval intake blocked with a helpful message
+      (`abort_unless(..., 422)` in `SubscriptionController@store`). A
+      `renewed`/`pending` renewal is blocked the same way with a validation error
+      on `decision`, and nothing is written (§11.6)
+- [ ] Subscription deleted → requests cascade-delete; audit logs keep history —
+      `cascadeOnDelete` is in `create_approval_requests_table`, but no test covers
+      it → §12.2
+- [x] Last-step forward without final approval → blocked (`ApprovalChainTest`:
+      "blocks forwarding the final step until that office has approved")
+- [ ] `pending_approval` subscriptions excluded from dashboard "active spend" and
+      due-soon — **half true**: due-soon / expiring / overdue filter
+      `status = active`, but the "Active spend" card (`total_cost`) sums every
+      non-cancelled subscription → §12.1
+- [x] Every chain action writes an audit row — `Approval Approved`,
+      `Approval Forwarded`, `Approval Returned`, `Approval Completed`
+      (asserted in `ApprovalChainTest`)
+- [x] Last-step completion is explicit — approving the final effective step closes
+      the chain and applies the outcome (§11.2)
+- [ ] NEW — a subscription can hold two in-flight requests (record two renewal
+      decisions → two chains) → §12.3
+- [ ] NEW — nothing in the UI can advance a chain yet; the queue is milestone 5
+      → §8 / §12.5
+
+---
+
+## 11. Deviations & as-built decisions
+
+Recorded so nobody has to re-derive them. **Append here** — do not rewrite the
+milestone sketches above.
+
+**11.1 Office-scoped authorization (§6 rule 1) is not enforceable yet.**
+`users` has no `office_id` column (only `username` / `fname` / `mname` / `lname` /
+`sname` / `email`) and the only seeded role is `admin` (`RoleSeeder`), so there is
+nothing to compare `current_office_id` against. Following the parenthetical in §6
+("MVP: reviewer/admin may act at any office"), any authenticated user may act, and
+the planned "wrong-office 403" test became **"acting on a request that is no longer
+`in_progress` → 403"**. Real scoping needs `users.office_id` plus a `hasRole`
+bypass → §12.4.
+
+**11.2 Chain completion trigger (§6 rules 3/5 reconciled).**
+"Forward past it is blocked" vs "final office approval flips status to `active`"
+is implemented as: `approve` on the final **effective** step completes the chain;
+`forward` never moves the pointer past the last step, and when no active office
+remains ahead (every later office deactivated mid-flight) it completes the chain
+instead of stranding the request. A request therefore never dead-ends, and
+`current_office_id` stays on the final office.
+
+**11.3 Route parameter name.**
+Routes use `{approval_request}`, not the §6 sketch's `{request}`, because a route
+parameter named `request` is confusing next to the injected
+`Illuminate\Http\Request`; controller signatures read
+`approve(Request $request, ApprovalRequest $approvalRequest)`.
+
+**11.4 One shared engine.**
+`app/Services/ApprovalChain.php` (`flowFor` / `start` / `complete`) now backs
+procurement intake, renewal wiring and the runtime. The snapshot code that used to
+live privately in `SubscriptionController::createProcurementRequest()` was
+extracted there, and `start()` seats the pointer on the first snapshot step whose
+office is still active (falling back to the first step).
+
+**11.5 `return` is attributable.**
+Besides the step + request status/remarks required by §6 rule 4, `return` also
+sets request-level `decided_by` / `decided_at`, so terminal states are traceable
+without joining the step row.
+
+**11.6 Renewals need a flow.**
+`renewed` / `pending` resolve the flow as subscription's flow → default flow
+(`ApprovalChain::flowFor`). If neither exists, `RenewalsController@store` throws a
+validation error on `decision` **before writing anything** (no `Renewal` row, no
+request). `cancelled` still applies immediately with no chain.
+
+**11.7 UI copy follows the behavior.**
+`renewal-review-sheet.tsx` now states that renewed/pending decisions travel the
+approval chain and only apply once the final office approves.
+
+**11.8 No `approval-stepper.tsx` extraction.**
+`resources/js/components/renewal-timeline.tsx` already renders the full
+`----0-----0------0----0` line with done / current / todo / returned states, actor,
+timestamp and remarks, so it serves as the shared stepper; the mock it replaced is
+deleted.
+
+---
+
+## 12. Backlog / additions
+
+New work goes here (milestone-level items also get a §0 row). Roughly prioritised.
+
+**12.1 Dashboard "Active spend" includes `pending_approval` (bug).**
+`DashboardController` builds `total_cost` from
+`Subscription::whereNot('status', 'cancelled')`, so unapproved subscriptions
+inflate the card. Filter to `status = 'active'` (or exclude
+`pending_approval` + `expired`) and add a `DashboardTest` case.
+
+**12.2 Missing edge-case tests.** Snapshot immutability when a flow is edited
+mid-flight (create request → change the flow's steps → assert
+`approval_request_steps` unchanged) and cascade-delete of requests when a
+subscription is deleted.
+
+**12.3 Duplicate in-flight requests.** Nothing stops a second `renewed` decision
+(or a second procurement submission) for a subscription that already has an
+`in_progress` request. Consider blocking with a validation error or returning the
+existing request from the queue instead.
+
+**12.4 Real office scoping / "my office" queue.** Add `users.office_id`
+(migration + factory + `UserController` form + seeder), then enforce §6 rule 1
+(`current_office_id === user->office_id`, with an `admin`/`reviewer` bypass via
+`hasRole`) and default the queue to the acting user's office.
+
+**12.5 Approvals queue UI (milestone 5, the active step).** `ApprovalsController@index`
++ `approvals.index` route + `resources/js/pages/approvals/index.tsx` +
+Approve/Forward/Return actions (one shared action component, reused on
+`subscriptions/show`) + sidebar entry, with type and office filters. Until §12.4
+lands the queue cannot be filtered per user — an office dropdown is the interim.
+
+**12.6 Optional dashboard KPI** — pending-approval count linking to the queue.
+
+**12.7 Deferred / never started.** `approved_by` / `approved_at` metadata on
+direct-entry subscriptions (§5) and the `rejected` request status (the constant
+exists in `ApprovalRequest` but is never written).
+

@@ -1,3 +1,4 @@
+import ApprovalActions from '@/components/approval-actions';
 import RenewalReviewSheet from '@/components/renewal-review-sheet';
 import RenewalTimeline from '@/components/renewal-timeline';
 import StatusBadge from '@/components/status-badge';
@@ -37,6 +38,8 @@ export default function ShowSubscription({
     suggested_cost: string;
 }) {
     const { patch, processing } = useForm();
+
+    const activeRequest = approval_requests?.find((request) => request.status === 'in_progress') ?? null;
 
     const cancel = () => {
         if (window.confirm(`Cancel "${subscription.name}"? Its status will be set to cancelled.`)) {
@@ -79,7 +82,19 @@ export default function ShowSubscription({
                     </div>
                 </div>
 
-                <RenewalTimeline request={approval_requests?.[0] ?? null} />
+                <RenewalTimeline request={activeRequest ?? approval_requests?.[0] ?? null} />
+
+                {activeRequest && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                        <div>
+                            <p className="text-sm font-medium">Waiting for approval</p>
+                            <p className="text-muted-foreground text-xs">
+                                Currently at {activeRequest.current_office?.name ?? 'the next office'}. Approve it here, forward it on, or return it.
+                            </p>
+                        </div>
+                        <ApprovalActions request={activeRequest} />
+                    </div>
+                )}
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <Card>

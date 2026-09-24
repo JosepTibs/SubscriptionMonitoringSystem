@@ -29,6 +29,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('subscriptions/{subscription}/renewals', [RenewalsController::class, 'store'])
         ->name('subscriptions.renewals.store');
 
+    Route::get('approvals', [ApprovalRequestController::class, 'index'])->name('approvals.index');
+
     Route::patch('approval-requests/{approval_request}/approve', [ApprovalRequestController::class, 'approve'])
         ->name('approval-requests.approve');
     Route::patch('approval-requests/{approval_request}/forward', [ApprovalRequestController::class, 'forward'])

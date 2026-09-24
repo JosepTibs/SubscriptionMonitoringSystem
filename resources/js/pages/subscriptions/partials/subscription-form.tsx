@@ -160,7 +160,7 @@ export default function SubscriptionForm({
                             <SelectValue placeholder="Select an owner" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="none">— None —</SelectItem>
+                            <SelectItem value="none">Select Owner</SelectItem>
                             {owners.map((owner) => (
                                 <SelectItem key={owner.id} value={String(owner.id)}>
                                     {owner.name}
@@ -199,7 +199,7 @@ export default function SubscriptionForm({
                                 <SelectValue placeholder="Default flow" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="none">— Default flow —</SelectItem>
+                                <SelectItem value="none"> Select flow</SelectItem>
                                 {approvalFlows.map((flow) => (
                                     <SelectItem key={flow.id} value={String(flow.id)}>
                                         {flow.name}

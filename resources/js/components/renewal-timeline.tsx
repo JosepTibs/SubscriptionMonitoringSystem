@@ -1,18 +1,9 @@
+import { StepIcon, stateStyles, trailStepState } from '@/components/approval-stepper';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDate, formatPeso } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { type ApprovalRequest, type ApprovalRequestStep } from '@/types';
-import { Check, Circle, LoaderCircle, Undo2 } from 'lucide-react';
-
-type TrailStepState = 'done' | 'current' | 'todo' | 'returned';
-
-const stateStyles: Record<TrailStepState, string> = {
-    done: 'bg-primary text-primary-foreground border-primary',
-    current: 'border-primary text-primary ring-2 ring-primary/30 bg-background',
-    todo: 'border-muted-foreground/30 text-muted-foreground bg-muted/40',
-    returned: 'border-destructive text-destructive bg-destructive/10',
-};
+import { type ApprovalRequest } from '@/types';
 
 const statusLabels: Record<string, string> = {
     in_progress: 'In progress',
@@ -20,38 +11,6 @@ const statusLabels: Record<string, string> = {
     returned: 'Returned',
     rejected: 'Rejected',
 };
-
-function trailStepState(step: ApprovalRequestStep, request: ApprovalRequest): TrailStepState {
-    if (step.status === 'returned') {
-        return 'returned';
-    }
-
-    if (step.status === 'approved' || step.status === 'forwarded') {
-        return 'done';
-    }
-
-    if (step.status === 'received') {
-        return 'current';
-    }
-
-    return request.status === 'in_progress' && step.office_id === request.current_office_id ? 'current' : 'todo';
-}
-
-function StepIcon({ state }: { state: TrailStepState }) {
-    if (state === 'done') {
-        return <Check className="size-4" />;
-    }
-
-    if (state === 'current') {
-        return <LoaderCircle className="size-4 animate-spin" />;
-    }
-
-    if (state === 'returned') {
-        return <Undo2 className="size-4" />;
-    }
-
-    return <Circle className="size-4" />;
-}
 
 export default function RenewalTimeline({ request }: { request?: ApprovalRequest | null }) {
     if (!request) {

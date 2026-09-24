@@ -4,23 +4,81 @@ namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalRequestStep;
+use App\Models\Office;
 use App\Services\ApprovalChain;
 use App\Services\AuditTrail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * Office-to-office runtime for approval requests.
  *
- * Approve records the office's sign-off without moving the pointer; forward
- * hands the request to the next active office in the snapshot; return stops
- * the chain. Approving the final effective step completes the chain and
- * applies its outcome (see ApprovalChain::complete).
+ * The index lists the approval queue - requests still travelling the chain -
+ * while approve records the office's sign-off without moving the pointer,
+ * forward hands the request to the next active office in the snapshot and
+ * return stops the chain. Approving the final effective step completes the
+ * chain and applies its outcome (see ApprovalChain::complete).
  */
 class ApprovalRequestController extends Controller
 {
+    /**
+     * The approval queue, optionally narrowed by status, type or office.
+     *
+     * Office scoping is not tied to the acting user yet (users carry no office),
+     * so the office filter is picked by hand for now.
+     */
+    public function index(Request $request): Response
+    {
+
+        $status = $request->filled('status') && $request->status !== 'all'
+            ? $request->status
+            : ApprovalRequest::STATUS_IN_PROGRESS;
+
+        $requests = ApprovalRequest::query()
+            ->with([
+                'subscription.office',
+                'subscription.owner',
+                'flow',
+                'currentOffice',
+                'renewal',
+                'steps.office',
+                'steps.actor',
+            ])
+            ->where('status', $status)
+            ->when(
+                $request->filled('type') && $request->type !== 'all',
+                fn (Builder $query) => $query->where('type', $request->type)
+            )
+            ->when(
+                $request->filled('office_id') && $request->office_id !== 'all',
+                fn (Builder $query) => $query->where('current_office_id', $request->office_id)
+            )
+            ->oldest()
+            ->paginate(15)
+            ->withQueryString();
+
+        return Inertia::render('approvals/index', [
+            'requests' => $requests,
+            'offices' => Office::ordered()->get(['id', 'name']),
+            'filters' => $request->only(['status', 'type', 'office_id']),
+            'counts' => [
+                'in_progress' => ApprovalRequest::query()
+                    ->where('status', ApprovalRequest::STATUS_IN_PROGRESS)
+                    ->count(),
+                'completed' => ApprovalRequest::query()
+                    ->where('status', ApprovalRequest::STATUS_COMPLETED)
+                    ->count(),
+                'returned' => ApprovalRequest::query()
+                    ->where('status', ApprovalRequest::STATUS_RETURNED)
+                    ->count(),
+            ],
+        ]);
+    }
+
     /**
      * Record the current office's approval without moving the pointer.
      */
@@ -157,20 +215,13 @@ class ApprovalRequestController extends Controller
                 'remarks' => $validated['remarks'],
             ]);
 
-            $approvalRequest->update([
-                'status' => ApprovalRequest::STATUS_RETURNED,
-                'remarks' => $validated['remarks'],
-                'decided_by' => $request->user()->id,
-                'decided_at' => now(),
-            ]);
-
             AuditTrail::record(
                 user: $request->user(),
                 action: 'Approval Returned',
                 auditable: $approvalRequest->subscription,
-                oldValues: ['status' => ApprovalRequest::STATUS_IN_PROGRESS],
+                oldValues: ['step_status' => $step->status, 'office' => $step->office->name],
                 newValues: [
-                    'status' => ApprovalRequest::STATUS_RETURNED,
+                    'step_status' => ApprovalRequestStep::STATUS_RETURNED,
                     'office' => $step->office->name,
                     'remarks' => $validated['remarks'],
                 ],

@@ -38,7 +38,7 @@ function daysLabel(subscription: Subscription): { text: string; className: strin
     return { text: `${days} days`, className: '' };
 }
 
-export default function Dashboard({ stats, dueSoon }: { stats: DashboardStats; dueSoon: Subscription[] }) {
+export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardStats; dueInOneMonth: Subscription[] }) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
@@ -97,14 +97,14 @@ export default function Dashboard({ stats, dueSoon }: { stats: DashboardStats; d
                                 </tr>
                             </thead>
                             <tbody>
-                                {dueSoon.length === 0 && (
+                                {dueInOneMonth.length === 0 && (
                                     <tr>
                                         <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
                                             Nothing due in the next 30 days.
                                         </td>
                                     </tr>
                                 )}
-                                {dueSoon.map((sub) => {
+                                {dueInOneMonth.map((sub) => {
                                     const r = daysLabel(sub);
                                     return (
                                         <tr key={sub.id} className="border-b transition-colors last:border-0 hover:bg-muted/50">
