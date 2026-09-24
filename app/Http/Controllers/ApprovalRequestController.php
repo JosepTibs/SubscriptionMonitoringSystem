@@ -110,6 +110,7 @@ class ApprovalRequestController extends Controller
             $step->update([
                 'status' => ApprovalRequestStep::STATUS_APPROVED,
                 'acted_by' => $request->user()->id,
+                'acted_by_name' => $request->user()->name,
                 'acted_at' => now(),
                 'remarks' => $validated['remarks'] ?? null,
             ]);
@@ -208,18 +209,30 @@ class ApprovalRequestController extends Controller
         $step = $this->currentStep($approvalRequest);
 
         DB::transaction(function () use ($approvalRequest, $step, $validated, $request): void {
+            $previousStatus = $step->status;
+
             $step->update([
                 'status' => ApprovalRequestStep::STATUS_RETURNED,
                 'acted_by' => $request->user()->id,
+                'acted_by_name' => $request->user()->name,
                 'acted_at' => now(),
                 'remarks' => $validated['remarks'],
+            ]);
+
+            // The request itself is closed as returned so the queue's returned
+            // tab and counts can see it without walking the steps.
+            $approvalRequest->update([
+                'status' => ApprovalRequest::STATUS_RETURNED,
+                'remarks' => $validated['remarks'],
+                'decided_by' => $request->user()->id,
+                'decided_at' => now(),
             ]);
 
             AuditTrail::record(
                 user: $request->user(),
                 action: 'Approval Returned',
                 auditable: $approvalRequest->subscription,
-                oldValues: ['step_status' => $step->status, 'office' => $step->office->name],
+                oldValues: ['step_status' => $previousStatus, 'office' => $step->office->name],
                 newValues: [
                     'step_status' => ApprovalRequestStep::STATUS_RETURNED,
                     'office' => $step->office->name,

@@ -55,6 +55,7 @@ export default function RenewalTimeline({ request }: { request?: ApprovalRequest
                         <div className="flex min-w-[720px] items-start">
                             {steps.map((step, i) => {
                                 const state = trailStepState(step, request);
+                                const actorName = step.acted_by_name ?? step.actor?.name;
 
                                 return (
                                     <div key={step.id} className="flex flex-1 items-start last:flex-none">
@@ -72,7 +73,7 @@ export default function RenewalTimeline({ request }: { request?: ApprovalRequest
                                                 {step.status}
                                             </Badge>
                                             <span className="text-muted-foreground text-[11px]">
-                                                {step.actor ? `Accepted by ${step.actor.name}` : 'Waiting'}
+                                                {actorName ? `Accepted by ${actorName}` : 'Waiting'}
                                             </span>
                                             <span className="text-muted-foreground text-[11px]">
                                                 {step.acted_at ? formatDate(step.acted_at) : (step.remarks ?? '—')}

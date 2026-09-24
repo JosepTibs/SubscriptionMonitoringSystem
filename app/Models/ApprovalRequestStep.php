@@ -28,6 +28,7 @@ class ApprovalRequestStep extends Model
         'step_order',
         'status',
         'acted_by',
+        'acted_by_name',
         'acted_at',
         'remarks',
     ];

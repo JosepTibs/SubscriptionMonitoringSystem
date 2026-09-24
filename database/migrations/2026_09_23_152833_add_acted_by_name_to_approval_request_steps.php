@@ -1,21 +1,31 @@
 <?php
 
-use Illville \"Database\",
-    $\defaults\nmanage_method\nmanage_space\mplicele_producu\nLoadLibrary_Space{}<>
-return new class extends Migralic
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
+return new class extends Migration
 {
-    // Run the migralics.
-    public function up {void: void }
-      System::table('\approval_purpos_steps', function (Blue[data] $table) {
-        $table->string('acted_by_name')>=navailed->after('acted_by');
-      });
-}
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::table('approval_request_steps', function (Blueprint $table) {
+            // Snapshot of the acting user's name at the moment of the action:
+            // acted_by is nullOnDelete, so the FK alone cannot name the actor
+            // once that user is removed.
+            $table->string('acted_by_name')->nullable()->after('acted_by');
+        });
+    }
 
-// Reverse the migralics.
-    private runite(function dow(): void {
-        System::table('applicate_request_steps', function (Blue[data] $table) {
-            $table->product('acted_by_iname');
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('approval_request_steps', function (Blueprint $table) {
+            $table->dropColumn('acted_by_name');
         });
     }
 };

@@ -64,6 +64,7 @@ it('records an approval without moving the pointer and audits it', function () {
     $step = chainStep($request, 1);
     expect($step->status)->toBe(ApprovalRequestStep::STATUS_APPROVED)
         ->and($step->acted_by)->toBe($user->id)
+        ->and($step->acted_by_name)->toBe($user->name)
         ->and($step->acted_at)->not->toBeNull()
         ->and($step->remarks)->toBe('Specs verified');
 
@@ -74,6 +75,23 @@ it('records an approval without moving the pointer and audits it', function () {
     expect(AuditLog::where('action', 'Approval Approved')
         ->where('auditable_id', $subscription->id)
         ->exists())->toBeTrue();
+});
+
+it('keeps naming the actor on the step after that user is deleted', function () {
+    $user = chainReviewer();
+    $flow = ApprovalFlow::factory()->create();
+    [$subscription, $request, $offices] = chainSubscription($flow);
+
+    $actorName = $user->name;
+
+    $this->actingAs($user)->patch(route('approval-requests.approve', $request))->assertRedirect();
+
+    $user->delete();
+
+    $step = chainStep($request, 1)->refresh();
+
+    expect($step->acted_by)->toBeNull()
+        ->and($step->acted_by_name)->toBe($actorName);
 });
 
 it('refuses to forward a step that has not been approved yet', function () {
@@ -216,6 +234,7 @@ it('requires remarks to return a request and then stops the chain', function () 
         ->and($request->remarks)->toBe('Budget not approved')
         ->and($request->decided_by)->toBe($user->id)
         ->and(chainStep($request, 1)->status)->toBe(ApprovalRequestStep::STATUS_RETURNED)
+        ->and(chainStep($request, 1)->acted_by_name)->toBe($user->name)
         ->and(chainStep($request, 1)->remarks)->toBe('Budget not approved');
 
     // A returned request can no longer travel.

@@ -62,6 +62,7 @@ export interface ApprovalRequestStep {
     step_order: number;
     status: ApprovalRequestStepStatus;
     acted_by: number | null;
+    acted_by_name: string | null;
     acted_at: string | null;
     remarks: string | null;
     office?: Office | null;
