@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -84,11 +85,16 @@ class ApprovalRequestController extends Controller
      */
     public function approve(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
     {
+        // The guard runs before validation so acting on a decided request is
+        // always a 403, regardless of the payload.
+        $this->requireInProgress($approvalRequest);
+
         $validated = $request->validate([
             'remarks' => ['nullable', 'string'],
+            // The office's decision-maker, typed by ICT (PRD §0 — never the
+            // acting account's name).
+            'approved_by_name' => ['required', 'string', 'max:255'],
         ]);
-
-        $this->requireInProgress($approvalRequest);
 
         $step = $this->currentStep($approvalRequest);
 
@@ -110,7 +116,7 @@ class ApprovalRequestController extends Controller
             $step->update([
                 'status' => ApprovalRequestStep::STATUS_APPROVED,
                 'acted_by' => $request->user()->id,
-                'acted_by_name' => $request->user()->name,
+                'approved_by_name' => $validated['approved_by_name'],
                 'acted_at' => now(),
                 'remarks' => $validated['remarks'] ?? null,
             ]);
@@ -120,7 +126,11 @@ class ApprovalRequestController extends Controller
                 action: 'Approval Approved',
                 auditable: $approvalRequest->subscription,
                 oldValues: ['office' => $step->office->name, 'status' => $previousStatus],
-                newValues: ['office' => $step->office->name, 'status' => ApprovalRequestStep::STATUS_APPROVED],
+                newValues: [
+                    'office' => $step->office->name,
+                    'status' => ApprovalRequestStep::STATUS_APPROVED,
+                    'approved_by' => $validated['approved_by_name'],
+                ],
                 description: 'Approved step at "'.$step->office->name.'" for "'.$approvalRequest->subscription->name.'"',
             );
 
@@ -141,10 +151,6 @@ class ApprovalRequestController extends Controller
      */
     public function forward(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
     {
-        $validated = $request->validate([
-            'remarks' => ['nullable', 'string'],
-        ]);
-
         $this->requireInProgress($approvalRequest);
 
         $step = $this->currentStep($approvalRequest);
@@ -155,7 +161,17 @@ class ApprovalRequestController extends Controller
             'Approve this step before forwarding it.'
         );
 
+        // Computed before validating so the received-by rule can be conditional:
+        // when the chain completes there is no destination office to receive
+        // anything, so nothing is asked for.
         $nextStep = $this->nextActiveStep($approvalRequest, $step);
+
+        $validated = $request->validate([
+            'remarks' => ['nullable', 'string'],
+            // The contact receiving the papers at the destination office, typed
+            // by ICT (PRD §0 — never the acting account's name).
+            'received_by_name' => [Rule::requiredIf($nextStep !== null), 'nullable', 'string', 'max:255'],
+        ]);
 
         DB::transaction(function () use ($approvalRequest, $step, $nextStep, $validated, $request): void {
             $step->update([
@@ -168,7 +184,10 @@ class ApprovalRequestController extends Controller
                 action: 'Approval Forwarded',
                 auditable: $approvalRequest->subscription,
                 oldValues: ['current_office' => $step->office->name],
-                newValues: ['current_office' => $nextStep?->office->name ?? 'Chain completed'],
+                newValues: [
+                    'current_office' => $nextStep?->office->name ?? 'Chain completed',
+                    'received_by' => $nextStep !== null ? $validated['received_by_name'] : null,
+                ],
                 description: $nextStep === null
                     ? 'Closed the approval chain for "'.$approvalRequest->subscription->name.'" at "'.$step->office->name.'"'
                     : 'Forwarded approval for "'.$approvalRequest->subscription->name.'" to "'.$nextStep->office->name.'"',
@@ -183,7 +202,11 @@ class ApprovalRequestController extends Controller
                 return;
             }
 
-            $nextStep->update(['status' => ApprovalRequestStep::STATUS_RECEIVED]);
+            $nextStep->update([
+                'status' => ApprovalRequestStep::STATUS_RECEIVED,
+                'received_by_name' => $validated['received_by_name'],
+                'received_at' => now(),
+            ]);
 
             $approvalRequest->update(['current_office_id' => $nextStep->office_id]);
         });
@@ -200,11 +223,16 @@ class ApprovalRequestController extends Controller
      */
     public function return(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
     {
+        // The guard runs before validation so acting on a decided request is
+        // always a 403, regardless of the payload.
+        $this->requireInProgress($approvalRequest);
+
         $validated = $request->validate([
             'remarks' => ['required', 'string'],
+            // The office's decision-maker who sent it back, typed by ICT
+            // (PRD §0). Same column as approve; the trail labels it "Returned by".
+            'approved_by_name' => ['required', 'string', 'max:255'],
         ]);
-
-        $this->requireInProgress($approvalRequest);
 
         $step = $this->currentStep($approvalRequest);
 
@@ -214,7 +242,7 @@ class ApprovalRequestController extends Controller
             $step->update([
                 'status' => ApprovalRequestStep::STATUS_RETURNED,
                 'acted_by' => $request->user()->id,
-                'acted_by_name' => $request->user()->name,
+                'approved_by_name' => $validated['approved_by_name'],
                 'acted_at' => now(),
                 'remarks' => $validated['remarks'],
             ]);
@@ -236,6 +264,7 @@ class ApprovalRequestController extends Controller
                 newValues: [
                     'step_status' => ApprovalRequestStep::STATUS_RETURNED,
                     'office' => $step->office->name,
+                    'returned_by' => $validated['approved_by_name'],
                     'remarks' => $validated['remarks'],
                 ],
                 description: 'Returned approval for "'.$approvalRequest->subscription->name.'" at "'.$step->office->name.'"',

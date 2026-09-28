@@ -28,8 +28,10 @@ class ApprovalRequestStep extends Model
         'step_order',
         'status',
         'acted_by',
-        'acted_by_name',
+        'approved_by_name',
         'acted_at',
+        'received_by_name',
+        'received_at',
         'remarks',
     ];
 
@@ -53,6 +55,7 @@ class ApprovalRequestStep extends Model
         return [
             'step_order' => 'integer',
             'acted_at' => 'datetime',
+            'received_at' => 'datetime',
         ];
     }
 }

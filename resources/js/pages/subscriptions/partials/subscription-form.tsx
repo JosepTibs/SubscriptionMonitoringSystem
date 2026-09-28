@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type ApprovalFlow, type Office, type Subscription } from '@/types';
-import { type FormEventHandler } from 'react';
+import { type FormEventHandler, useEffect } from 'react';
 
 export type SubscriptionFormData = {
     provider: string;
@@ -17,6 +17,7 @@ export type SubscriptionFormData = {
     office_id: string | null;
     owner_id: string | null;
     approval_flow_id: string | null;
+    received_by_name: string;
     status: string;
     description: string;
 };
@@ -33,6 +34,7 @@ interface SubscriptionFormProps {
     approvalFlows: ApprovalFlow[];
     subscription?: Subscription;
     showApprovalFlow?: boolean;
+    showReceivedBy?: boolean;
     extra?: React.ReactNode;
 }
 
@@ -47,8 +49,17 @@ export default function SubscriptionForm({
     owners,
     approvalFlows,
     showApprovalFlow = true,
+    showReceivedBy = false,
     extra,
 }: SubscriptionFormProps) {
+    useEffect(() => {
+        if (data.start_date) {
+            const date = new Date(data.start_date);
+            date.setFullYear(date.getFullYear() + 1);
+
+            setData('renewal_date', date.toISOString().split('T')[0]);
+        }
+    }, [data.start_date]);
     return (
         <form onSubmit={onSubmit} className="space-y-6">
             {extra}
@@ -191,10 +202,7 @@ export default function SubscriptionForm({
                 {showApprovalFlow && (
                     <div className="grid gap-2">
                         <Label htmlFor="approval_flow_id">Approval flow</Label>
-                        <Select
-                            value={data.approval_flow_id ?? ''}
-                            onValueChange={(value) => setData('approval_flow_id', value)}
-                        >
+                        <Select value={data.approval_flow_id ?? ''} onValueChange={(value) => setData('approval_flow_id', value)}>
                             <SelectTrigger id="approval_flow_id" className="w-full">
                                 <SelectValue placeholder="Default flow" />
                             </SelectTrigger>
@@ -209,6 +217,20 @@ export default function SubscriptionForm({
                             </SelectContent>
                         </Select>
                         <InputError message={errors.approval_flow_id} />
+                    </div>
+                )}
+
+                {showReceivedBy && (
+                    <div className="grid gap-2">
+                        <Label htmlFor="received_by_name">Received by</Label>
+                        <Input
+                            id="received_by_name"
+                            value={data.received_by_name}
+                            onChange={(e) => setData('received_by_name', e.target.value)}
+                            placeholder="Contact at the first office"
+                            
+                        />
+                        <InputError message={errors.received_by_name} />
                     </div>
                 )}
 

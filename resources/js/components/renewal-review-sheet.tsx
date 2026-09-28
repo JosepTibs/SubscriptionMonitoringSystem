@@ -4,14 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-    Sheet,
-    SheetClose,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-} from '@/components/ui/sheet';
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { billingIntervalLabel, formatDate, formatPeso } from '@/lib/format';
 import { type Subscription } from '@/types';
 import { useForm } from '@inertiajs/react';
@@ -30,6 +23,7 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
         decision: 'pending',
         new_renewal_date: suggested_renewal_date,
         new_cost: suggested_cost,
+        received_by_name: '',
         remarks: '',
     });
 
@@ -48,21 +42,19 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
         <Sheet open={open} onOpenChange={setOpen}>
             <Button onClick={() => setOpen(true)}>Review Renewal</Button>
 
-            <SheetContent side="right" className="flex flex-col overflow-y-auto gap-4 sm:max-w-lg">
+            <SheetContent side="right" className="flex flex-col gap-4 overflow-y-auto sm:max-w-lg">
                 <SheetHeader>
                     <SheetTitle>Review Renewal — {subscription.name}</SheetTitle>
                     <SheetDescription>
-                        Record a decision for this subscription's upcoming renewal. Renewed and pending decisions travel the approval chain and only apply once the final
-                        office approves; a cancelled decision applies immediately.
+                        Record a decision for this subscription's upcoming renewal. Renewed and pending decisions travel the approval chain and only
+                        apply once the final office approves; a cancelled decision applies immediately.
                     </SheetDescription>
                 </SheetHeader>
 
                 <div className="grid gap-2 rounded-lg border p-3 text-sm">
                     <div className="flex items-center justify-between">
                         <span className="text-muted-foreground text-xs">Billing interval</span>
-                        <span className="font-medium">
-                            {billingIntervalLabel(subscription.billing_interval, subscription.billing_interval_unit)}
-                        </span>
+                        <span className="font-medium">{billingIntervalLabel(subscription.billing_interval, subscription.billing_interval_unit)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                         <span className="text-muted-foreground text-xs">Current renewal date</span>
@@ -115,6 +107,18 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
                             onChange={(e) => setData('new_cost', e.target.value)}
                         />
                         <InputError message={errors.new_cost} />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="received_by_name">Received by</Label>
+                        <Input
+                            id="received_by_name"
+                            value={data.received_by_name}
+                            onChange={(e) => setData('received_by_name', e.target.value)}
+                            placeholder="Contact at the first office"
+                            required={data.decision !== 'cancelled'}
+                        />
+                        <InputError message={errors.received_by_name} />
                     </div>
 
                     <div className="grid gap-2">

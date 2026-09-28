@@ -16,7 +16,7 @@ use Inertia\Response;
 class ApprovalFlowController extends Controller
 {
     /**
-     * Display all flows with their ordered steps.
+     * Display the combined Offices & Flows screen.
      */
     public function index(): Response
     {
@@ -25,18 +25,14 @@ class ApprovalFlowController extends Controller
             ->orderBy('name')
             ->get();
 
-        return Inertia::render('approval-flows/index', [
+        return Inertia::render('offices/index', [
             'flows' => $flows,
-        ]);
-    }
-
-    /**
-     * Show the form for creating a new flow.
-     */
-    public function create(): Response
-    {
-        return Inertia::render('approval-flows/create', [
-            'offices' => Office::ordered()->get(),
+            'offices' => Office::query()
+                ->withCount('subscriptions')
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(),
+            'next_sort_order' => ((int) Office::max('sort_order')) + 10,
         ]);
     }
 
@@ -65,19 +61,6 @@ class ApprovalFlowController extends Controller
         );
 
         return redirect()->route('approval-flows.index')->with('success', 'Approval flow created successfully.');
-    }
-
-    /**
-     * Show the form for editing the specified flow.
-     */
-    public function edit(ApprovalFlow $approvalFlow): Response
-    {
-        $approvalFlow->load('steps.office');
-
-        return Inertia::render('approval-flows/edit', [
-            'approval_flow' => $approvalFlow,
-            'offices' => Office::ordered()->get(),
-        ]);
     }
 
     /**

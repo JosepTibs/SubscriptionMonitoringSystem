@@ -1,15 +1,47 @@
 <?php
 
+use App\Models\ApprovalFlow;
+use App\Models\ApprovalFlowStep;
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Office;
+use App\Models\Subscription;
 use App\Models\User;
+use App\Services\ApprovalChain;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
 });
+
+/**
+ * A subscription submitted through a flow that visits the given offices in
+ * order, returning [subscription, approvalRequest] with the chain started.
+ *
+ * @return array{0: Subscription, 1: ApprovalRequest}
+ */
+function officeShowRequest(Office ...$offices): array
+{
+    $flow = ApprovalFlow::factory()->create();
+
+    foreach ($offices as $index => $office) {
+        ApprovalFlowStep::create([
+            'approval_flow_id' => $flow->id,
+            'office_id' => $office->id,
+            'step_order' => $index + 1,
+        ]);
+    }
+
+    $subscription = Subscription::factory()->create([
+        'status' => 'pending_approval',
+        'approval_flow_id' => $flow->id,
+    ]);
+
+    return [$subscription, ApprovalChain::start($subscription, $flow, ApprovalRequest::TYPE_PROCUREMENT)];
+}
 
 test('offices index is displayed in chain order', function () {
     Office::factory()->create(['name' => 'Budget', 'sort_order' => 20]);
@@ -72,34 +104,87 @@ test('office can be deactivated and reactivated', function () {
         ->and(AuditLog::where('action', 'Office Activated')->count())->toBe(1);
 });
 
-test('office can be moved down in the chain', function () {
-    $first = Office::factory()->create(['sort_order' => 10]);
-    $second = Office::factory()->create(['sort_order' => 20]);
+test('office show page displays the handling history', function () {
+    $office = Office::factory()->create(['name' => 'Budget']);
+    [$subscription] = officeShowRequest($office);
 
-    $this->patch(route('offices.move', $first), ['direction' => 'down'])
-        ->assertRedirect(route('offices.index'));
-
-    expect($first->fresh()->sort_order)->toBe(20)
-        ->and($second->fresh()->sort_order)->toBe(10);
+    $this->get(route('offices.show', $office))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('offices/show')
+            ->where('office.name', 'Budget')
+            ->where('chain_position', 1)
+            ->where('counts.pending', 1)
+            ->where('counts.all', 1)
+            ->has('history.data', 1)
+            ->where('history.data.0.approval_request.subscription.id', $subscription->id)
+            ->where('history.data.0.status', 'pending'));
 });
 
-test('first office cannot move up and last cannot move down', function () {
-    $first = Office::factory()->create(['sort_order' => 10]);
-    $second = Office::factory()->create(['sort_order' => 20]);
+test('papers move from the approved bucket to released when forwarded', function () {
+    $first = Office::factory()->create();
+    $second = Office::factory()->create();
+    [, $request] = officeShowRequest($first, $second);
 
-    $this->patch(route('offices.move', $first), ['direction' => 'up']);
-    $this->patch(route('offices.move', $second), ['direction' => 'down']);
+    $this->patch(route('approval-requests.approve', $request), [
+        'approved_by_name' => 'Budget Head',
+    ])->assertRedirect();
 
-    expect($first->fresh()->sort_order)->toBe(10)
-        ->and($second->fresh()->sort_order)->toBe(20);
+    $this->get(route('offices.show', $first))
+        ->assertInertia(fn ($page) => $page
+            ->where('counts.approved', 1)
+            ->where('counts.released', 0)
+            ->where('history.data.0.approved_by_name', 'Budget Head'));
+
+    $this->patch(route('approval-requests.forward', $request), [
+        'received_by_name' => 'Accounting Clerk',
+    ])->assertRedirect();
+
+    $this->get(route('offices.show', $first).'?status=released')
+        ->assertInertia(fn ($page) => $page
+            ->where('counts.released', 1)
+            ->where('counts.approved', 0)
+            ->has('history.data', 1)
+            ->where('history.data.0.office_id', $first->id)
+            ->where('history.data.0.status', 'forwarded'));
+
+    $this->get(route('offices.show', $first).'?status=approved')
+        ->assertInertia(fn ($page) => $page->has('history.data', 0));
 });
 
-test('inactive offices cannot be reordered', function () {
-    $active = Office::factory()->create(['sort_order' => 10]);
-    $inactive = Office::factory()->create(['sort_order' => 20, 'is_active' => false]);
+test('returned papers appear under the returned bucket', function () {
+    $office = Office::factory()->create();
+    [, $request] = officeShowRequest($office);
 
-    $this->patch(route('offices.move', $inactive), ['direction' => 'up']);
+    $this->patch(route('approval-requests.return', $request), [
+        'remarks' => 'Missing annex',
+        'approved_by_name' => 'Budget Head',
+    ])->assertRedirect();
 
-    expect($inactive->fresh()->sort_order)->toBe(20)
-        ->and($active->fresh()->sort_order)->toBe(10);
+    $this->get(route('offices.show', $office).'?status=returned')
+        ->assertInertia(fn ($page) => $page
+            ->where('counts.returned', 1)
+            ->has('history.data', 1)
+            ->where('history.data.0.status', 'returned'));
+});
+
+test('office show lists the subscriptions assigned to it', function () {
+    $office = Office::factory()->create();
+    $other = Office::factory()->create();
+    $subscription = Subscription::factory()->create(['office_id' => $office->id]);
+    Subscription::factory()->create(['office_id' => $other->id]);
+
+    $this->get(route('offices.show', $office))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('assigned_subscriptions', 1)
+            ->where('assigned_subscriptions.0.id', $subscription->id));
+});
+
+test('redirects guests away from the office show page', function () {
+    $office = Office::factory()->create();
+
+    $this->post(route('logout'));
+
+    $this->get(route('offices.show', $office))->assertRedirect(route('login'));
 });

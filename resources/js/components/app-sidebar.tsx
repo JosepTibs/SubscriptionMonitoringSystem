@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, CreditCard, Folder, LayoutGrid, User2, BriefcaseBusiness, ActivityIcon, ChartBar, ClipboardCheck } from 'lucide-react';
+import { ActivityIcon, BriefcaseBusiness, ClipboardCheck, CreditCard, LayoutGrid, User2 } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -19,17 +19,12 @@ const mainNavItems: NavItem[] = [
         icon: ClipboardCheck,
     },
     {
-        title: 'Flow',
-        url: '/approval-flows',
-        icon: ChartBar,
-    },
-    {
         title: 'Subscriptions',
         url: '/subscriptions',
         icon: CreditCard,
     },
     {
-        title: 'Office',
+        title: 'Offices & Flows',
         url: '/offices',
         icon: BriefcaseBusiness,
     },
@@ -47,7 +42,7 @@ const footerNavItems: NavItem[] = [
         icon: User2,
     },
     {
-        title: "Profile",
+        title: 'Profile',
         url: '/profile',
         icon: User2,
     },
@@ -65,10 +60,9 @@ const footerNavItems: NavItem[] = [
     // },
 ];
 
-
 export function AppSidebar() {
     return (
-         <Sidebar collapsible="icon" variant="inset">
+        <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>

@@ -58,6 +58,10 @@ class SubscriptionController extends Controller
             // required_if is deliberately NOT used: omitting a flow id falls
             // back to the default flow in the transaction below.
             'approval_flow_id' => ['nullable', 'integer', 'exists:approval_flows,id'],
+            // The contact receiving the papers at the first office. Required
+            // only when the subscription actually travels a chain (PRD §0: a
+            // person at that office, typed by ICT — never the acting account).
+            'received_by_name' => ['required_if:intake_mode,for_approval', 'nullable', 'string', 'max:255'],
         ]);
 
         [$subscription, $forApproval] = DB::transaction(function () use ($request, $validated): array {
@@ -80,7 +84,7 @@ class SubscriptionController extends Controller
             $subscription = Subscription::create($validated);
 
             if ($forApproval) {
-                $this->createProcurementRequest($subscription, $flow, $request->user());
+                $this->createProcurementRequest($subscription, $flow, $request->user(), $validated['received_by_name'] ?? null);
             }
 
             return [$subscription, $forApproval];
@@ -252,9 +256,9 @@ class SubscriptionController extends Controller
         ];
     }
 
-    private function createProcurementRequest(Subscription $subscription, ApprovalFlow $flow, User $user): ApprovalRequest
+    private function createProcurementRequest(Subscription $subscription, ApprovalFlow $flow, User $user, ?string $receivedByName = null): ApprovalRequest
     {
-        $approvalRequest = ApprovalChain::start($subscription, $flow, ApprovalRequest::TYPE_PROCUREMENT);
+        $approvalRequest = ApprovalChain::start($subscription, $flow, ApprovalRequest::TYPE_PROCUREMENT, null, $receivedByName);
         $approvalRequest->load('currentOffice');
 
         AuditTrail::record(
@@ -265,6 +269,7 @@ class SubscriptionController extends Controller
                 'status' => 'pending_approval',
                 'approval_flow' => $flow->name,
                 'current_office' => $approvalRequest->currentOffice?->name,
+                'received_by' => $receivedByName,
             ],
             description: 'Submitted subscription "'.$subscription->name.'" for approval via flow "'.$flow->name.'"',
         );

@@ -23,9 +23,10 @@ interface FlowFormProps {
     onSubmit: FormEventHandler;
     offices: Office[];
     flow?: ApprovalFlow;
+    cancel?: React.ReactNode;
 }
 
-export default function FlowForm({ data, setData, errors, processing, submitLabel, onSubmit, offices, flow }: FlowFormProps) {
+export default function FlowForm({ data, setData, errors, processing, submitLabel, onSubmit, offices, flow, cancel }: FlowFormProps) {
     const availableOffices = offices.filter((office) => !data.steps.includes(String(office.id)));
 
     const addStep = (officeId: string) => {
@@ -55,7 +56,6 @@ export default function FlowForm({ data, setData, errors, processing, submitLabe
     };
 
     const officeName = (officeId: string) => offices.find((office) => String(office.id) === officeId)?.name ?? `Office #${officeId}`;
-
 
     return (
         <Card>
@@ -151,6 +151,7 @@ export default function FlowForm({ data, setData, errors, processing, submitLabe
 
                     <div className="flex items-center gap-4">
                         <Button disabled={processing}>{submitLabel}</Button>
+                        {cancel}
                     </div>
                 </form>
             </CardContent>

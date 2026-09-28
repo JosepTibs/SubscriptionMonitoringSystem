@@ -42,4 +42,13 @@ class Office extends Model
     {
         return $this->hasMany(Subscription::class);
     }
+
+    /**
+     * Every step of every approval request that passed through this office —
+     * the office's history of handling subscriptions.
+     */
+    public function approvalRequestSteps(): HasMany
+    {
+        return $this->hasMany(ApprovalRequestStep::class);
+    }
 }

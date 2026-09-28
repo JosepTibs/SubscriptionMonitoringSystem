@@ -19,22 +19,17 @@ interface OfficeFormProps {
     submitLabel: string;
     onSubmit: FormEventHandler;
     extra?: React.ReactNode;
+    cancel?: React.ReactNode;
 }
 
-export default function OfficeForm({ data, setData, errors, processing, submitLabel, onSubmit, extra }: OfficeFormProps) {
+export default function OfficeForm({ data, setData, errors, processing, submitLabel, onSubmit, extra, cancel }: OfficeFormProps) {
     return (
         <Card>
             <CardContent>
                 <form onSubmit={onSubmit} className="grid gap-6">
                     <div className="grid gap-2">
                         <Label htmlFor="name">Office name</Label>
-                        <Input
-                            id="name"
-                            value={data.name}
-                            onChange={(e) => setData('name', e.target.value)}
-                            placeholder="e.g. Accounting"
-                            required
-                        />
+                        <Input id="name" value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="e.g. Accounting" required />
                         <InputError message={errors.name} />
                     </div>
 
@@ -54,6 +49,7 @@ export default function OfficeForm({ data, setData, errors, processing, submitLa
 
                     <div className="flex items-center gap-4">
                         <Button disabled={processing}>{submitLabel}</Button>
+                        {cancel}
                     </div>
                 </form>
             </CardContent>

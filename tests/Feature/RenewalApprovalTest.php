@@ -57,6 +57,7 @@ it('opens a renewal approval request with a flow snapshot on a renewed decision'
             'new_renewal_date' => '2027-06-01',
             'new_cost' => '60000',
             'remarks' => 'Vendor gave a discount',
+            'received_by_name' => 'Records Clerk',
         ])
         ->assertRedirect(route('subscriptions.show', $subscription));
 
@@ -78,7 +79,9 @@ it('opens a renewal approval request with a flow snapshot on a renewed decision'
         ->and($request->status)->toBe(ApprovalRequest::STATUS_IN_PROGRESS)
         ->and($request->current_office_id)->toBe($offices[0]->id)
         ->and($request->steps()->count())->toBe(2)
-        ->and($request->steps()->pluck('step_order')->all())->toBe([1, 2]);
+        ->and($request->steps()->pluck('step_order')->all())->toBe([1, 2])
+        ->and($request->steps()->first()->received_by_name)->toBe('Records Clerk')
+        ->and($request->steps()->first()->received_at)->not->toBeNull();
 
     // The proposal must not reach the subscription until the chain completes.
     $subscription->refresh();
@@ -105,6 +108,7 @@ it('opens a pending renewal request through the default flow', function () {
             'new_renewal_date' => '2027-01-01',
             'new_cost' => '1500',
             'remarks' => 'Waiting on the vendor quote',
+            'received_by_name' => 'Records Clerk',
         ])
         ->assertRedirect();
 
@@ -150,6 +154,7 @@ it('blocks a renewal when no approval flow is configured', function () {
             'decision' => 'renewed',
             'new_renewal_date' => '2027-06-01',
             'new_cost' => '60000',
+            'received_by_name' => 'Records Clerk',
         ])
         ->assertSessionHasErrors('decision');
 
@@ -171,14 +176,15 @@ it('applies the approved renewal to the subscription when the chain completes', 
             'new_renewal_date' => '2027-06-01',
             'new_cost' => '60000',
             'remarks' => 'Approved by management',
+            'received_by_name' => 'Records Clerk',
         ])
         ->assertRedirect();
 
     $request = ApprovalRequest::where('subscription_id', $subscription->id)->firstOrFail();
 
-    $this->patch(route('approval-requests.approve', $request))->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request))->assertRedirect();
-    $this->patch(route('approval-requests.approve', $request))->assertRedirect();
+    $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request), ['received_by_name' => 'Accounting Clerk'])->assertRedirect();
+    $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Agency Head'])->assertRedirect();
 
     $subscription->refresh();
 

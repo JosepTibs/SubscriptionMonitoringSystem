@@ -62,11 +62,14 @@ export interface ApprovalRequestStep {
     step_order: number;
     status: ApprovalRequestStepStatus;
     acted_by: number | null;
-    acted_by_name: string | null;
+    approved_by_name: string | null;
     acted_at: string | null;
+    received_by_name: string | null;
+    received_at: string | null;
     remarks: string | null;
     office?: Office | null;
     actor?: User | null;
+    approval_request?: ApprovalRequest;
 }
 
 export type ApprovalRequestType = 'procurement' | 'renewal';

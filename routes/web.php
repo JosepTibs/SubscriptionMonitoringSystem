@@ -38,14 +38,12 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('approval-requests/{approval_request}/return', [ApprovalRequestController::class, 'return'])
         ->name('approval-requests.return');
 
-    Route::resource('offices', OfficeController::class)->except(['show', 'destroy']);
+    Route::resource('offices', OfficeController::class)->except(['destroy', 'create', 'edit']);
     Route::patch('offices/{office}/toggle-active', [OfficeController::class, 'toggleActive'])
         ->name('offices.toggle-active');
-    Route::patch('offices/{office}/move', [OfficeController::class, 'move'])
-        ->name('offices.move');
 
     Route::resource('approval-flows', ApprovalFlowController::class)
-        ->except(['show', 'destroy']);
+        ->except(['show', 'destroy', 'create', 'edit']);
     Route::patch('approval-flows/{approval_flow}/set-default', [ApprovalFlowController::class, 'setDefault'])
         ->name('approval-flows.set-default');
 });

@@ -117,19 +117,15 @@ it('enforces a single default flow via set-default and audits it', function () {
         ->and($audit->new_values['default_flow'])->toBe($second->name);
 });
 
-it('renders the flows index and edit form', function () {
+it('renders the combined offices and flows index from both routes', function () {
     $user = actingAsAdmin();
-    $flow = ApprovalFlow::factory()->create();
+    ApprovalFlow::factory()->create();
 
     $this->actingAs($user)->get(route('approval-flows.index'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('approval-flows/index'));
+        ->assertInertia(fn ($page) => $page->component('offices/index'));
 
-    $this->actingAs($user)->get(route('approval-flows.create'))
+    $this->actingAs($user)->get(route('offices.index'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('approval-flows/create'));
-
-    $this->actingAs($user)->get(route('approval-flows.edit', $flow))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('approval-flows/edit'));
+        ->assertInertia(fn ($page) => $page->component('offices/index'));
 });

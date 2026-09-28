@@ -39,20 +39,22 @@ class ApprovalChain
      *
      * The pointer starts at the first snapshot step whose office is still
      * active, falling back to the first step so a fully deactivated flow still
-     * has somewhere to sit.
+     * has somewhere to sit. When $receivedByName is given (the contact ICT
+     * typed at submission) the first step is recorded as received.
      */
     public static function start(
         Subscription $subscription,
         ApprovalFlow $flow,
         string $type,
         ?Renewal $renewal = null,
+        ?string $receivedByName = null,
     ): ApprovalRequest {
         $flow->load('steps.office');
 
         $steps = $flow->steps->sortBy('step_order')->values();
         $firstStep = $steps->first(fn (ApprovalFlowStep $step): bool => (bool) $step->office?->is_active) ?? $steps->first();
 
-        return DB::transaction(function () use ($subscription, $flow, $type, $renewal, $steps, $firstStep): ApprovalRequest {
+        return DB::transaction(function () use ($subscription, $flow, $type, $renewal, $steps, $firstStep, $receivedByName): ApprovalRequest {
             $request = ApprovalRequest::create([
                 'subscription_id' => $subscription->id,
                 'type' => $type,
@@ -63,11 +65,22 @@ class ApprovalChain
             ]);
 
             foreach ($steps as $index => $step) {
+                // The papers are already with the first office once ICT submits
+                // them, so that step starts as received with the contact ICT
+                // typed in. Later steps stay pending until forward() hands them
+                // over. Without a receiver recorded (tests/direct calls) the
+                // legacy pending shape is kept.
+                $isFirstStep = $index === 0;
+
                 ApprovalRequestStep::create([
                     'approval_request_id' => $request->id,
                     'office_id' => $step->office_id,
                     'step_order' => $index + 1,
-                    'status' => ApprovalRequestStep::STATUS_PENDING,
+                    'status' => $isFirstStep && $receivedByName !== null
+                        ? ApprovalRequestStep::STATUS_RECEIVED
+                        : ApprovalRequestStep::STATUS_PENDING,
+                    'received_by_name' => $isFirstStep ? $receivedByName : null,
+                    'received_at' => $isFirstStep && $receivedByName !== null ? now() : null,
                 ]);
             }
 

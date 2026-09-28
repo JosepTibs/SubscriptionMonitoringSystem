@@ -47,46 +47,54 @@ export default function RenewalTimeline({ request }: { request?: ApprovalRequest
             </CardHeader>
             <CardContent>
                 {steps.length === 0 ? (
-                    <p className="text-muted-foreground py-6 text-center text-sm">
-                        No offices are attached to this approval flow yet.
-                    </p>
+                    <p className="text-muted-foreground py-6 text-center text-sm">No offices are attached to this approval flow yet.</p>
                 ) : (
                     <div className="overflow-x-auto">
                         <div className="flex min-w-[720px] items-start">
                             {steps.map((step, i) => {
                                 const state = trailStepState(step, request);
-                                const actorName = step.acted_by_name ?? step.actor?.name;
+                                const isTerminal = state === 'done' || state === 'returned';
+                                const signatoryLabel = step.approved_by_name ?? (isTerminal ? step.actor?.name : null);
+                                const receiverLabel = step.received_by_name ?? (state === 'current' ? step.actor?.name : null);
+                                const nameLine =
+                                    state === 'returned'
+                                        ? signatoryLabel
+                                            ? `Returned by ${signatoryLabel}`
+                                            : 'Waiting'
+                                        : isTerminal
+                                          ? signatoryLabel
+                                              ? `Approved by ${signatoryLabel}`
+                                              : 'Waiting'
+                                          : receiverLabel
+                                            ? `Received by ${receiverLabel}`
+                                            : 'No contact recorded';
 
                                 return (
                                     <div key={step.id} className="flex flex-1 items-start last:flex-none">
                                         <div className="flex w-32 flex-col items-center gap-1 text-center">
-                                            <span
-                                                className={cn(
-                                                    'flex size-9 items-center justify-center rounded-full border-2',
-                                                    stateStyles[state],
-                                                )}
-                                            >
+                                            <span className={cn('flex size-9 items-center justify-center rounded-full border-2', stateStyles[state])}>
                                                 <StepIcon state={state} />
                                             </span>
                                             <span className="text-xs font-semibold">{step.office?.name ?? 'Removed office'}</span>
                                             <Badge variant="secondary" className="capitalize">
                                                 {step.status}
                                             </Badge>
-                                            <span className="text-muted-foreground text-[11px]">
-                                                {actorName ? `Accepted by ${actorName}` : 'Waiting'}
-                                            </span>
+                                            <span className="text-muted-foreground text-[11px]">{nameLine}</span>
                                             <span className="text-muted-foreground text-[11px]">
                                                 {step.acted_at ? formatDate(step.acted_at) : (step.remarks ?? '—')}
                                             </span>
-                                            {step.acted_at && step.remarks && (
-                                                <span className="line-clamp-2 text-[11px]">{step.remarks}</span>
+                                            {state === 'current' && step.received_at && (
+                                                <span className="text-muted-foreground text-[11px]">
+                                                    {`At this office ${Math.max(0, Math.floor((Date.now() - new Date(step.received_at).getTime()) / 86_400_000))} day(s)`}
+                                                </span>
                                             )}
+                                            {step.acted_at && step.remarks && <span className="line-clamp-2 text-[11px]">{step.remarks}</span>}
                                         </div>
                                         {i < steps.length - 1 && (
                                             <div
                                                 className={cn(
                                                     'mx-1 mt-4 h-0.5 flex-1',
-                                                    state === 'done' ? 'bg-primary' : 'border-t-2 border-dashed border-muted-foreground/30',
+                                                    state === 'done' ? 'bg-primary' : 'border-muted-foreground/30 border-t-2 border-dashed',
                                                 )}
                                             />
                                         )}
@@ -105,9 +113,7 @@ export default function RenewalTimeline({ request }: { request?: ApprovalRequest
                     </p>
                 )}
 
-                {request.status === 'returned' && request.remarks && (
-                    <p className="text-destructive mt-4 text-xs">Returned: {request.remarks}</p>
-                )}
+                {request.status === 'returned' && request.remarks && <p className="text-destructive mt-4 text-xs">Returned: {request.remarks}</p>}
             </CardContent>
         </Card>
     );

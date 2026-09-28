@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalFlow;
+use App\Models\ApprovalRequestStep;
 use App\Models\Office;
 use App\Services\AuditTrail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -12,7 +15,7 @@ use Inertia\Response;
 class OfficeController extends Controller
 {
     /**
-     * Display a listing of offices in chain order.
+     * Display the combined Offices & Flows screen.
      */
     public function index(): Response
     {
@@ -24,16 +27,65 @@ class OfficeController extends Controller
 
         return Inertia::render('offices/index', [
             'offices' => $offices,
+            'flows' => ApprovalFlow::query()
+                ->with('steps.office')
+                ->orderBy('name')
+                ->get(),
+            'next_sort_order' => ((int) Office::max('sort_order')) + 10,
         ]);
     }
 
     /**
-     * Show the form for creating a new office.
+     * Show one office and the history of the subscriptions whose papers it
+     * has handled: pending (queued for or sitting at this office), approved
+     * (signed off here), released (forwarded onward) and returned (sent
+     * back from here).
      */
-    public function create(): Response
+    public function show(Request $request, Office $office): Response
     {
-        return Inertia::render('offices/create', [
-            'next_sort_order' => ((int) Office::max('sort_order')) + 10,
+        $buckets = [
+            'pending' => [ApprovalRequestStep::STATUS_PENDING, ApprovalRequestStep::STATUS_RECEIVED],
+            'approved' => [ApprovalRequestStep::STATUS_APPROVED],
+            'released' => [ApprovalRequestStep::STATUS_FORWARDED],
+            'returned' => [ApprovalRequestStep::STATUS_RETURNED],
+        ];
+
+        $requested = $request->input('status');
+        $filter = is_string($requested) && array_key_exists($requested, $buckets) ? $requested : 'all';
+
+        $counts = [
+            'pending' => $office->approvalRequestSteps()->whereIn('status', $buckets['pending'])->count(),
+            'approved' => $office->approvalRequestSteps()->where('status', ApprovalRequestStep::STATUS_APPROVED)->count(),
+            'released' => $office->approvalRequestSteps()->where('status', ApprovalRequestStep::STATUS_FORWARDED)->count(),
+            'returned' => $office->approvalRequestSteps()->where('status', ApprovalRequestStep::STATUS_RETURNED)->count(),
+        ];
+        $counts['all'] = array_sum($counts);
+
+        $chainPosition = null;
+
+        if ($office->is_active) {
+            $position = Office::ordered()->pluck('id')->search($office->id);
+            $chainPosition = $position === false ? null : $position + 1;
+        }
+
+        return Inertia::render('offices/show', [
+            'office' => $office,
+            'chain_position' => $chainPosition,
+            'history' => $office->approvalRequestSteps()
+                ->with([
+                    'approvalRequest.flow',
+                    'approvalRequest.subscription.owner',
+                    'approvalRequest.currentOffice',
+                ])
+                ->when(
+                    $filter !== 'all',
+                    fn (Builder $query) => $query->whereIn('status', $buckets[$filter])
+                )
+                ->orderByRaw('COALESCE(acted_at, received_at, created_at) DESC')
+                ->paginate(15)
+                ->withQueryString(),
+            'counts' => $counts,
+            'filters' => $request->only(['status']),
         ]);
     }
 
@@ -64,16 +116,6 @@ class OfficeController extends Controller
         );
 
         return redirect()->route('offices.index')->with('success', 'Office created successfully.');
-    }
-
-    /**
-     * Show the form for editing the specified office.
-     */
-    public function edit(Office $office): Response
-    {
-        return Inertia::render('offices/edit', [
-            'office' => $office,
-        ]);
     }
 
     /**
@@ -126,48 +168,5 @@ class OfficeController extends Controller
             ->with('success', $office->is_active
                 ? 'Office activated successfully.'
                 : 'Office deactivated. It is removed from future renewal forwards; history is preserved.');
-    }
-
-    /**
-     * Swap the office's position in the approval chain with the adjacent
-     * active office. Only sort_order values are swapped so the gap-of-10
-     * scheme is preserved.
-     */
-    public function move(Request $request, Office $office)
-    {
-        $validated = $request->validate([
-            'direction' => ['required', 'in:up,down'],
-        ]);
-
-        $chain = Office::ordered()->get(['id', 'sort_order'])->values();
-
-        $currentIndex = $chain->search(fn (Office $item) => $item->id === $office->id);
-
-        if ($currentIndex === false) {
-            return redirect()->route('offices.index')->with('error', 'Inactive offices cannot be reordered. Activate the office first.');
-        }
-
-        $targetIndex = $validated['direction'] === 'up' ? $currentIndex - 1 : $currentIndex + 1;
-
-        if ($targetIndex < 0 || $targetIndex >= $chain->count()) {
-            return redirect()->route('offices.index')->with('error', 'The office is already at the end of the chain.');
-        }
-
-        $currentSortOrder = $chain[$currentIndex]->sort_order;
-        $target = $chain[$targetIndex];
-
-        $chain[$currentIndex]->update(['sort_order' => $target->sort_order]);
-        $target->update(['sort_order' => $currentSortOrder]);
-
-        AuditTrail::record(
-            user: $request->user(),
-            action: 'Office Reordered',
-            auditable: $office,
-            oldValues: ['sort_order' => $currentSortOrder],
-            newValues: ['sort_order' => $target->sort_order],
-            description: 'Moved office "'.$office->name.'" '.$validated['direction'].' in the approval chain',
-        );
-
-        return redirect()->route('offices.index')->with('success', 'Approval chain updated successfully.');
     }
 }

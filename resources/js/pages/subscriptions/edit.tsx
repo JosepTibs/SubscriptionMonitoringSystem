@@ -24,6 +24,7 @@ export default function EditSubscription({ subscription, offices, owners, approv
         office_id: subscription.office_id ? String(subscription.office_id) : 'none',
         owner_id: subscription.owner_id ? String(subscription.owner_id) : 'none',
         approval_flow_id: subscription.approval_flow_id ? String(subscription.approval_flow_id) : 'none',
+        received_by_name: '',
         status: subscription.status,
         description: subscription.description ?? '',
     });

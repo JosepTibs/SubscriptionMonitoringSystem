@@ -36,6 +36,7 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
         office_id: 'none',
         owner_id: 'none',
         approval_flow_id: 'none',
+        received_by_name: '',
         status: 'active',
         description: '',
     });
@@ -101,6 +102,7 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
                     owners={owners}
                     approvalFlows={approval_flows}
                     showApprovalFlow={intakeMode === 'for_approval'}
+                    showReceivedBy={intakeMode === 'for_approval'}
                 />
             </div>
         </AppLayout>
