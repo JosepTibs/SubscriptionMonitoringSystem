@@ -32,6 +32,8 @@ class ApprovalRequestStep extends Model
         'acted_at',
         'received_by_name',
         'received_at',
+        'forwarded_by_name',
+        'forwarded_at',
         'remarks',
     ];
 
@@ -56,6 +58,7 @@ class ApprovalRequestStep extends Model
             'step_order' => 'integer',
             'acted_at' => 'datetime',
             'received_at' => 'datetime',
+            'forwarded_at' => 'datetime',
         ];
     }
 }

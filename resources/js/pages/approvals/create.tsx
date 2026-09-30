@@ -3,26 +3,29 @@ import AppLayout from '@/layouts/app-layout';
 import { type ApprovalFlow, type BreadcrumbItem, type Office, type Owner } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import { type FormEventHandler } from 'react';
-import SubscriptionForm, { type SubscriptionFormData } from './partials/subscription-form';
+import SubscriptionForm, { type SubscriptionFormData } from '../subscriptions/partials/subscription-form';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Subscriptions', href: '/subscriptions' },
-    { title: 'New Subscription', href: '/subscriptions/create' },
+    { title: 'Approvals', href: '/approvals' },
+    { title: 'Submit for Approval', href: '/approvals/create' },
 ];
 
-interface CreateProps {
+interface CreateApprovalProps {
     offices: Office[];
     owners: Owner[];
     approval_flows: ApprovalFlow[];
 }
 
 /**
- * Intake for a subscription that is already in place: nothing travels an
- * approval chain here, so the dates are captured up front. Subscriptions that
- * still need sign-off are registered from the approvals screen instead.
+ * Intake for a subscription that still has to travel an approval chain.
+ *
+ * The start and renewal dates are deliberately absent: a submission that has
+ * not cleared its chain has no confirmed dates yet, so they are recorded once
+ * the chain completes. The status is likewise left to the server, which parks
+ * the subscription in pending approval.
  */
-export default function CreateSubscription({ offices, owners, approval_flows }: CreateProps) {
+export default function SubmitForApproval({ offices, owners, approval_flows }: CreateApprovalProps) {
     const { data, setData, transform, post, processing, errors } = useForm<SubscriptionFormData>({
         provider: '',
         name: '',
@@ -35,7 +38,7 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
         owner_id: 'none',
         approval_flow_id: 'none',
         received_by_name: '',
-        status: 'active',
+        status: 'pending_approval',
         description: '',
     });
 
@@ -44,10 +47,14 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
 
         transform((payload) => ({
             ...payload,
-            intake_mode: 'approved',
+            intake_mode: 'for_approval',
             office_id: payload.office_id === 'none' ? null : payload.office_id,
             owner_id: payload.owner_id === 'none' ? null : payload.owner_id,
             approval_flow_id: payload.approval_flow_id === 'none' ? null : payload.approval_flow_id,
+            // Left empty on purpose: the dates travel with the subscription once
+            // the chain completes, not with the submission.
+            start_date: null,
+            renewal_date: null,
         }));
 
         post(route('subscriptions.store'));
@@ -55,12 +62,12 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="New Subscription" />
+            <Head title="Submit for Approval" />
 
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <Heading
-                    title="New Subscription"
-                    description="Register an existing subscription managed by the ICT department. Use Submit for Approval when it still has to travel an approval chain."
+                    title="Submit for Approval"
+                    description="Register a subscription and route it through an approval flow. Start and renewal dates are recorded once the chain is completed."
                 />
 
                 <SubscriptionForm
@@ -68,12 +75,14 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
                     setData={setData}
                     errors={errors}
                     processing={processing}
-                    submitLabel="Create Subscription"
+                    submitLabel="Submit for Approval"
                     onSubmit={submit}
                     offices={offices}
                     owners={owners}
                     approvalFlows={approval_flows}
-                    showApprovalFlow={false}
+                    showReceivedBy
+                    showDates={false}
+                    showStatus={false}
                 />
             </div>
         </AppLayout>

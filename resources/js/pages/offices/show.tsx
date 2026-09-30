@@ -1,5 +1,4 @@
 import Heading from '@/components/heading';
-import StatusBadge from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -209,7 +208,6 @@ export default function OfficeShow({ office, chain_position, history, counts, fi
                         )}
                     </CardContent>
                 </Card>
-                
             </div>
         </AppLayout>
     );

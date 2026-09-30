@@ -28,15 +28,12 @@ type ConfirmState = ConfirmOptions & {
     resolve: (ok: boolean) => void;
 };
 
-const ConfirmContext = createContext<(options: ConfirmOptions) => Promise<boolean>>(
-    () => Promise.resolve(false),
-);
+const ConfirmContext = createContext<(options: ConfirmOptions) => Promise<boolean>>(() => Promise.resolve(false));
 
 // Module-level delegate so code outside React components (module-scope
 // handlers, utility modules) can request confirmations too. The provider
 // swaps this in when it mounts.
-let confirmDelegate: (options: ConfirmOptions) => Promise<boolean> = () =>
-    Promise.resolve(false);
+let confirmDelegate: (options: ConfirmOptions) => Promise<boolean> = () => Promise.resolve(false);
 
 /**
  * Promise-based confirmation. Safe to call from anywhere — components
@@ -97,22 +94,14 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>{state?.title}</AlertDialogTitle>
-                        {state?.description && (
-                            <AlertDialogDescription>
-                                {state.description}
-                            </AlertDialogDescription>
-                        )}
+                        {state?.description && <AlertDialogDescription>{state.description}</AlertDialogDescription>}
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => settle(false)}>
-                            {state?.cancelLabel ?? 'Cancel'}
-                        </AlertDialogCancel>
+                        <AlertDialogCancel onClick={() => settle(false)}>{state?.cancelLabel ?? 'Cancel'}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => settle(true)}
                             className={
-                                (state?.destructive ?? true)
-                                    ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                                    : undefined
+                                (state?.destructive ?? true) ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined
                             }
                         >
                             {state?.confirmLabel ?? 'Delete'}

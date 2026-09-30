@@ -101,11 +101,60 @@ it('no longer credits the acting account by name once that user is deleted', fun
         ->and($step->approved_by_name)->toBe('Budget Head');
 });
 
-it('renames the step name column and adds the received columns', function () {
+it('renames the step name column and adds the hand-off columns', function () {
     expect(Schema::hasColumn('approval_request_steps', 'approved_by_name'))->toBeTrue()
         ->and(Schema::hasColumn('approval_request_steps', 'acted_by_name'))->toBeFalse()
         ->and(Schema::hasColumn('approval_request_steps', 'received_by_name'))->toBeTrue()
-        ->and(Schema::hasColumn('approval_request_steps', 'received_at'))->toBeTrue();
+        ->and(Schema::hasColumn('approval_request_steps', 'received_at'))->toBeTrue()
+        ->and(Schema::hasColumn('approval_request_steps', 'forwarded_by_name'))->toBeTrue()
+        ->and(Schema::hasColumn('approval_request_steps', 'forwarded_at'))->toBeTrue();
+});
+
+it('records who released the papers and when on forward', function () {
+    $user = chainReviewer();
+    $flow = ApprovalFlow::factory()->create();
+    [$subscription, $request] = chainSubscription($flow);
+
+    $this->actingAs($user)
+        ->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])
+        ->assertRedirect();
+
+    $this->patch(route('approval-requests.forward', $request), [
+        'received_by_name' => 'Accounting Clerk',
+        'sent_by_name' => 'Budget Officer',
+    ])->assertRedirect(route('subscriptions.show', $subscription));
+
+    $released = chainStep($request, 1);
+
+    expect($released->status)->toBe(ApprovalRequestStep::STATUS_FORWARDED)
+        ->and($released->forwarded_by_name)->toBe('Budget Officer')
+        ->and($released->forwarded_at)->not->toBeNull()
+        // Signing off and releasing are separate events, each with its own
+        // person and moment.
+        ->and($released->approved_by_name)->toBe('Budget Head')
+        ->and($released->acted_at)->not->toBeNull();
+});
+
+it('still forwards when the releaser is not named', function () {
+    $user = chainReviewer();
+    $flow = ApprovalFlow::factory()->create();
+    [$subscription, $request] = chainSubscription($flow);
+
+    $this->actingAs($user)
+        ->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])
+        ->assertRedirect();
+
+    $this->patch(route('approval-requests.forward', $request), [
+        'received_by_name' => 'Accounting Clerk',
+    ])->assertRedirect(route('subscriptions.show', $subscription));
+
+    $released = chainStep($request, 1);
+
+    // The sent columns stay empty so the trail can fall back to the signatory
+    // instead of inventing a name.
+    expect($released->status)->toBe(ApprovalRequestStep::STATUS_FORWARDED)
+        ->and($released->forwarded_by_name)->toBeNull()
+        ->and($released->forwarded_at)->not->toBeNull();
 });
 
 it('refuses to forward a step that has not been approved yet', function () {

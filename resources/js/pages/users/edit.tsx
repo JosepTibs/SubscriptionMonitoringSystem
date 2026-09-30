@@ -1,10 +1,10 @@
-import { Head, router } from '@inertiajs/react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import EditUserSheet from '@/components/users/edit-user-sheet';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import EditUserSheet from '@/components/users/edit-user-sheet';
+import { Head, router } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 
@@ -55,7 +55,9 @@ export default function EditUserPage({ user, roles, role_name }: EditUserProps) 
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle>Edit user — {user.username}</CardTitle>
-                        <Button id="edit-user-button" onClick={() => setOpen(true)}>Edit details</Button>
+                        <Button id="edit-user-button" onClick={() => setOpen(true)}>
+                            Edit details
+                        </Button>
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-1">

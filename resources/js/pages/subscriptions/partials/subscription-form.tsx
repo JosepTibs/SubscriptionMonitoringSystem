@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type ApprovalFlow, type Office, type Subscription } from '@/types';
-import { type FormEventHandler, useEffect } from 'react';
+import { type ApprovalFlow, type Office, type Owner, type Subscription } from '@/types';
+import { type FormEventHandler, useEffect, useState } from 'react';
 
 export type SubscriptionFormData = {
     provider: string;
@@ -30,11 +30,14 @@ interface SubscriptionFormProps {
     submitLabel: string;
     onSubmit: FormEventHandler;
     offices: Office[];
-    owners: { id: number; name: string }[];
+    owners: Owner[];
     approvalFlows: ApprovalFlow[];
     subscription?: Subscription;
     showApprovalFlow?: boolean;
     showReceivedBy?: boolean;
+    showDates?: boolean;
+    datesRequired?: boolean;
+    showStatus?: boolean;
     extra?: React.ReactNode;
 }
 
@@ -50,16 +53,59 @@ export default function SubscriptionForm({
     approvalFlows,
     showApprovalFlow = true,
     showReceivedBy = false,
+    showDates = true,
+    datesRequired = true,
+    showStatus = true,
     extra,
 }: SubscriptionFormProps) {
     useEffect(() => {
-        if (data.start_date) {
+        if (!showDates) {
+            return;
+        }
+
+        if (data.start_date && data.billing_interval_unit === 'year') {
+            const renewalDateAdd = data.billing_interval;
             const date = new Date(data.start_date);
-            date.setFullYear(date.getFullYear() + 1);
+            date.setFullYear(date.getFullYear() + Number(renewalDateAdd || 0));
+
+            setData('renewal_date', date.toISOString().split('T')[0]);
+        } else if (data.start_date && data.billing_interval_unit === 'month') {
+            const renewalDateAdd = data.billing_interval;
+            const date = new Date(data.start_date);
+            date.setMonth(date.getMonth() + Number(renewalDateAdd || 0));
 
             setData('renewal_date', date.toISOString().split('T')[0]);
         }
-    }, [data.start_date]);
+    }, [data.start_date, data.billing_interval, showDates]);
+
+    useEffect(() => {
+        if (showApprovalFlow && (!data.approval_flow_id || data.approval_flow_id === 'none')) {
+            const defaultFlow = approvalFlows.find((flow) => flow.is_default);
+
+            if (defaultFlow) {
+                setData('approval_flow_id', String(defaultFlow.id));
+            }
+        }
+    }, [approvalFlows, showApprovalFlow]);
+
+    const [costFocused, setCostFocused] = useState(false);
+
+    const formatCost = (value: string) => {
+        // Remove commas
+        const clean = value.replace(/,/g, '');
+
+        // Allow empty value
+        if (!clean) return '';
+
+        // Split integer and decimal parts
+        const [integer, decimal] = clean.split('.');
+
+        // Add commas to integer part
+        const formattedInteger = Number(integer || '0').toLocaleString('en-PH');
+
+        return decimal !== undefined ? `${formattedInteger}.${decimal.slice(0, 2)}` : formattedInteger;
+    };
+
     return (
         <form onSubmit={onSubmit} className="space-y-6">
             {extra}
@@ -84,19 +130,26 @@ export default function SubscriptionForm({
 
                 <div className="grid gap-2">
                     <Label htmlFor="cost">Cost (₱)</Label>
+
                     <Input
                         id="cost"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={data.cost}
-                        onChange={(e) => setData('cost', e.target.value)}
-                        placeholder="50000.00"
+                        type="text"
+                        inputMode="decimal"
+                        value={formatCost(data.cost)}
+                        onChange={(e) => {
+                            const value = e.target.value.replace(/,/g, '');
+
+                            // Allow only numbers with an optional decimal
+                            if (/^\d*\.?\d{0,2}$/.test(value)) {
+                                setData('cost', value);
+                            }
+                        }}
+                        placeholder="50,000.00"
                         required
                     />
+
                     <InputError message={errors.cost} />
                 </div>
-
                 <div className="grid gap-2 md:grid-cols-2">
                     <div className="grid gap-2">
                         <Label htmlFor="billing_interval">Billing interval</Label>
@@ -129,40 +182,33 @@ export default function SubscriptionForm({
                     </div>
                 </div>
 
-                <div className="grid gap-2">
-                    <Label htmlFor="start_date">Start date</Label>
-                    <Input id="start_date" type="date" value={data.start_date} onChange={(e) => setData('start_date', e.target.value)} required />
-                    <InputError message={errors.start_date} />
-                </div>
+                {showDates && (
+                    <>
+                        <div className="grid gap-2">
+                            <Label htmlFor="start_date">Start date</Label>
+                            <Input
+                                id="start_date"
+                                type="date"
+                                value={data.start_date}
+                                onChange={(e) => setData('start_date', e.target.value)}
+                                required={datesRequired}
+                            />
+                            <InputError message={errors.start_date} />
+                        </div>
 
-                <div className="grid gap-2">
-                    <Label htmlFor="renewal_date">Next renewal date</Label>
-                    <Input
-                        id="renewal_date"
-                        type="date"
-                        value={data.renewal_date}
-                        onChange={(e) => setData('renewal_date', e.target.value)}
-                        required
-                    />
-                    <InputError message={errors.renewal_date} />
-                </div>
-                <div className="grid gap-2">
-                    <Label htmlFor="office_id">Office (where used)</Label>
-                    <Select value={data.office_id ?? ''} onValueChange={(value) => setData('office_id', value)}>
-                        <SelectTrigger id="office_id" className="w-full">
-                            <SelectValue placeholder="Select an office" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">— None —</SelectItem>
-                            {offices.map((office) => (
-                                <SelectItem key={office.id} value={String(office.id)}>
-                                    {office.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <InputError message={errors.office_id} />
-                </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="renewal_date">Next renewal date</Label>
+                            <Input
+                                id="renewal_date"
+                                type="date"
+                                value={data.renewal_date}
+                                onChange={(e) => setData('renewal_date', e.target.value)}
+                                required={datesRequired}
+                            />
+                            <InputError message={errors.renewal_date} />
+                        </div>
+                    </>
+                )}
 
                 <div className="grid gap-2">
                     <Label htmlFor="owner_id">Owner</Label>
@@ -182,22 +228,24 @@ export default function SubscriptionForm({
                     <InputError message={errors.owner_id} />
                 </div>
 
-                <div className="grid gap-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select value={data.status} onValueChange={(value) => setData('status', value)}>
-                        <SelectTrigger id="status" className="w-full">
-                            <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="expired">Expired</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                            <SelectItem value="suspended">Suspended</SelectItem>
-                            <SelectItem value="pending_approval">Pending Approval</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <InputError message={errors.status} />
-                </div>
+                {showStatus && (
+                    <div className="grid gap-2">
+                        <Label htmlFor="status">Status</Label>
+                        <Select value={data.status} onValueChange={(value) => setData('status', value)}>
+                            <SelectTrigger id="status" className="w-full">
+                                <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="expired">Expired</SelectItem>
+                                <SelectItem value="cancelled">Cancelled</SelectItem>
+                                <SelectItem value="suspended">Suspended</SelectItem>
+                                <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.status} />
+                    </div>
+                )}
 
                 {showApprovalFlow && (
                     <div className="grid gap-2">
@@ -207,7 +255,6 @@ export default function SubscriptionForm({
                                 <SelectValue placeholder="Default flow" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="none"> Select flow</SelectItem>
                                 {approvalFlows.map((flow) => (
                                     <SelectItem key={flow.id} value={String(flow.id)}>
                                         {flow.name}
@@ -228,23 +275,11 @@ export default function SubscriptionForm({
                             value={data.received_by_name}
                             onChange={(e) => setData('received_by_name', e.target.value)}
                             placeholder="Contact at the first office"
-                            
+                            required
                         />
                         <InputError message={errors.received_by_name} />
                     </div>
                 )}
-
-                <div className="grid gap-2 md:col-span-2">
-                    <Label htmlFor="description">Remarks / notes</Label>
-                    <textarea
-                        id="description"
-                        className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 flex field-sizing-content min-h-16 w-full rounded-lg border bg-transparent px-3 py-2 text-base transition-[color,box-shadow] outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                        value={data.description}
-                        onChange={(e) => setData('description', e.target.value)}
-                        placeholder="Optional notes about this subscription"
-                    />
-                    <InputError message={errors.description} />
-                </div>
             </div>
 
             <div className="flex items-center gap-4">

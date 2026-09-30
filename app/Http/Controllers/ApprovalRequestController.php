@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalFlow;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalRequestStep;
 use App\Models\Office;
+use App\Models\Owner;
 use App\Services\ApprovalChain;
 use App\Services\AuditTrail;
 use Illuminate\Database\Eloquent\Builder;
@@ -81,6 +83,21 @@ class ApprovalRequestController extends Controller
     }
 
     /**
+     * Intake a subscription that still has to travel an approval chain.
+     *
+     * The form lives with the queue it feeds, and it deliberately asks for no
+     * dates: a submission that has not cleared its chain has none yet.
+     */
+    public function create(): Response
+    {
+        return Inertia::render('approvals/create', [
+            'offices' => Office::query()->orderBy('name')->get(),
+            'owners' => Owner::query()->orderBy('name')->get(),
+            'approval_flows' => ApprovalFlow::query()->orderBy('name')->get(),
+        ]);
+    }
+
+    /**
      * Record the current office's approval without moving the pointer.
      */
     public function approve(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
@@ -117,6 +134,8 @@ class ApprovalRequestController extends Controller
                 'status' => ApprovalRequestStep::STATUS_APPROVED,
                 'acted_by' => $request->user()->id,
                 'approved_by_name' => $validated['approved_by_name'],
+                // Stamped by the system: dates are never typed on the runtime,
+                // only corrected afterwards (see ApprovalRequestStepController).
                 'acted_at' => now(),
                 'remarks' => $validated['remarks'] ?? null,
             ]);
@@ -171,11 +190,21 @@ class ApprovalRequestController extends Controller
             // The contact receiving the papers at the destination office, typed
             // by ICT (PRD §0 — never the acting account's name).
             'received_by_name' => [Rule::requiredIf($nextStep !== null), 'nullable', 'string', 'max:255'],
+            // The person releasing the papers from this office, typed by ICT
+            // (PRD §0 — never the acting account's name). Optional in the API so
+            // existing callers keep working: the trail falls back to the step's
+            // signatory when it is omitted.
+            'sent_by_name' => ['nullable', 'string', 'max:255'],
         ]);
 
         DB::transaction(function () use ($approvalRequest, $step, $nextStep, $validated, $request): void {
             $step->update([
                 'status' => ApprovalRequestStep::STATUS_FORWARDED,
+                // "Sent" is its own event with its own person and moment, so the
+                // audit trail can show an approval date and a release date
+                // separately instead of collapsing them into acted_at.
+                'forwarded_by_name' => $validated['sent_by_name'] ?? null,
+                'forwarded_at' => now(),
                 'remarks' => $validated['remarks'] ?? $step->remarks,
             ]);
 
@@ -186,6 +215,7 @@ class ApprovalRequestController extends Controller
                 oldValues: ['current_office' => $step->office->name],
                 newValues: [
                     'current_office' => $nextStep?->office->name ?? 'Chain completed',
+                    'sent_by' => $validated['sent_by_name'] ?? $step->approved_by_name,
                     'received_by' => $nextStep !== null ? $validated['received_by_name'] : null,
                 ],
                 description: $nextStep === null

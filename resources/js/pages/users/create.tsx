@@ -1,9 +1,9 @@
-﻿import { Head, router } from '@inertiajs/react';
+﻿import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import CreateUserSheet from '@/components/users/create-user-sheet';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import CreateUserSheet from '@/components/users/create-user-sheet';
+import { Head, router } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 
@@ -53,4 +53,3 @@ export default function CreateUserPage({ roles }: { roles: Role[] }) {
         </AppLayout>
     );
 }
-

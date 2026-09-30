@@ -1,15 +1,15 @@
-import { Head, Link, usePage, router } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
-import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem, type SharedData } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Monitor, User, Calendar, Filter } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
+import { type BreadcrumbItem } from '@/types';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Filter, Monitor, User } from 'lucide-react';
+import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -81,12 +81,8 @@ export default function ActivityLogs() {
     const [selectedActivity, setSelectedActivity] = useState<ActivityLog | null>(null);
 
     const [search, setSearch] = useState(filters.search || '');
-    const [userId, setUserId] = useState(
-        filters.user_id && filters.user_id !== 'all' ? filters.user_id : ''
-    );
-    const [event, setEvent] = useState(
-        filters.event && filters.event !== 'all' ? filters.event : ''
-    );
+    const [userId, setUserId] = useState(filters.user_id && filters.user_id !== 'all' ? filters.user_id : '');
+    const [event, setEvent] = useState(filters.event && filters.event !== 'all' ? filters.event : '');
     const [dateFrom, setDateFrom] = useState(filters.date_from || '');
     const [dateTo, setDateTo] = useState(filters.date_to || '');
 
@@ -99,9 +95,7 @@ export default function ActivityLogs() {
             ...(event ? { event } : {}),
             ...(dateFrom ? { date_from: dateFrom } : {}),
             ...(dateTo ? { date_to: dateTo } : {}),
-            ...Object.fromEntries(
-                Object.entries(overrides).filter(([, value]) => value !== undefined && value !== '')
-            ),
+            ...Object.fromEntries(Object.entries(overrides).filter(([, value]) => value !== undefined && value !== '')),
         };
 
         setIsLoading(true);
@@ -124,13 +118,17 @@ export default function ActivityLogs() {
 
         setIsLoading(true);
 
-        router.get('/activity-logs', {}, {
-            only: ['activities'],
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-            onFinish: () => setIsLoading(false),
-        });
+        router.get(
+            '/activity-logs',
+            {},
+            {
+                only: ['activities'],
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onFinish: () => setIsLoading(false),
+            },
+        );
     };
 
     const getEventBadge = (event: string) => {
@@ -206,24 +204,18 @@ export default function ActivityLogs() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Activity Logs" />
 
-            <div className="min-h-full bg-muted/20">
+            <div className="bg-muted/20 min-h-full">
                 <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6 lg:p-8">
                     {/* Header */}
                     <div className="flex flex-col gap-1">
-                        <p className="text-sm font-medium text-muted-foreground">Security & Audit</p>
+                        <p className="text-muted-foreground text-sm font-medium">Security & Audit</p>
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                             <div>
-                                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                                    Activity Logs
-                                </h1>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    Review actions and sign-in activity across your system.
-                                </p>
+                                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Activity Logs</h1>
+                                <p className="text-muted-foreground mt-1 text-sm">Review actions and sign-in activity across your system.</p>
                             </div>
 
-                            <div className="text-sm text-muted-foreground">
-                                {activities.total.toLocaleString()} total events
-                            </div>
+                            <div className="text-muted-foreground text-sm">{activities.total.toLocaleString()} total events</div>
                         </div>
                     </div>
 
@@ -247,10 +239,7 @@ export default function ActivityLogs() {
                                 </div>
 
                                 <div className="flex flex-wrap gap-2">
-                                    <Select
-                                        value={event || 'all'}
-                                        onValueChange={(value) => setEvent(value === 'all' ? '' : value)}
-                                    >
+                                    <Select value={event || 'all'} onValueChange={(value) => setEvent(value === 'all' ? '' : value)}>
                                         <SelectTrigger className="w-full sm:w-40">
                                             <SelectValue placeholder="All events" />
                                         </SelectTrigger>
@@ -264,10 +253,7 @@ export default function ActivityLogs() {
                                         </SelectContent>
                                     </Select>
 
-                                    <Select
-                                        value={userId || 'all'}
-                                        onValueChange={(value) => setUserId(value === 'all' ? '' : value)}
-                                    >
+                                    <Select value={userId || 'all'} onValueChange={(value) => setUserId(value === 'all' ? '' : value)}>
                                         <SelectTrigger className="w-full sm:w-44">
                                             <SelectValue placeholder="All users" />
                                         </SelectTrigger>
@@ -281,16 +267,11 @@ export default function ActivityLogs() {
                                         </SelectContent>
                                     </Select>
 
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setShowFilters((value) => !value)}
-                                        className="gap-2"
-                                    >
+                                    <Button type="button" variant="outline" onClick={() => setShowFilters((value) => !value)} className="gap-2">
                                         <Filter className="h-4 w-4" />
                                         More filters
                                         {activeFilterCount > 0 && (
-                                            <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                                            <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
                                                 {activeFilterCount}
                                             </span>
                                         )}
@@ -307,31 +288,16 @@ export default function ActivityLogs() {
                                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                         <div className="space-y-2">
                                             <Label htmlFor="date_from">From</Label>
-                                            <Input
-                                                id="date_from"
-                                                type="date"
-                                                value={dateFrom}
-                                                onChange={(e) => setDateFrom(e.target.value)}
-                                            />
+                                            <Input id="date_from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                                         </div>
 
                                         <div className="space-y-2">
                                             <Label htmlFor="date_to">To</Label>
-                                            <Input
-                                                id="date_to"
-                                                type="date"
-                                                value={dateTo}
-                                                onChange={(e) => setDateTo(e.target.value)}
-                                            />
+                                            <Input id="date_to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
                                         </div>
 
                                         <div className="flex items-end">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                onClick={clearFilters}
-                                                disabled={activeFilterCount === 0}
-                                            >
+                                            <Button type="button" variant="ghost" onClick={clearFilters} disabled={activeFilterCount === 0}>
                                                 Clear filters
                                             </Button>
                                         </div>
@@ -347,31 +313,25 @@ export default function ActivityLogs() {
                             <div className="flex items-center justify-between gap-4">
                                 <div>
                                     <CardTitle className="text-base">Audit trail</CardTitle>
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        Select an entry to inspect its details.
-                                    </p>
+                                    <p className="text-muted-foreground mt-1 text-sm">Select an entry to inspect its details.</p>
                                 </div>
 
-                                {isLoading && (
-                                    <span className="text-sm text-muted-foreground">Updating…</span>
-                                )}
+                                {isLoading && <span className="text-muted-foreground text-sm">Updating…</span>}
                             </div>
                         </CardHeader>
 
                         <CardContent className="p-0">
                             {activities.data.length === 0 ? (
                                 <div className="px-6 py-14 text-center">
-                                    <Monitor className="mx-auto h-8 w-8 text-muted-foreground" />
+                                    <Monitor className="text-muted-foreground mx-auto h-8 w-8" />
                                     <h3 className="mt-3 text-sm font-medium">No activity found</h3>
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        Try changing your search or filters.
-                                    </p>
+                                    <p className="text-muted-foreground mt-1 text-sm">Try changing your search or filters.</p>
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[760px] text-sm">
                                         <thead className="bg-muted/40">
-                                            <tr className="border-b text-left text-muted-foreground">
+                                            <tr className="text-muted-foreground border-b text-left">
                                                 <th className="px-4 py-3 font-medium">User</th>
                                                 <th className="px-4 py-3 font-medium">Event</th>
                                                 <th className="px-4 py-3 font-medium">Description</th>
@@ -396,25 +356,21 @@ export default function ActivityLogs() {
                                                                 setSelectedActivity(activity);
                                                             }
                                                         }}
-                                                        className="cursor-pointer transition-colors hover:bg-muted/40 focus:bg-muted/40 focus:outline-none"
+                                                        className="hover:bg-muted/40 focus:bg-muted/40 cursor-pointer transition-colors focus:outline-none"
                                                     >
                                                         <td className="px-4 py-3">
                                                             {activity.user ? (
                                                                 <div className="flex items-center gap-3">
                                                                     <Avatar className="h-8 w-8">
                                                                         <AvatarFallback className="text-xs">
-                                                                            {getInitials(
-                                                                                `${activity.user.fname} ${activity.user.lname}`
-                                                                            )}
+                                                                            {getInitials(`${activity.user.fname} ${activity.user.lname}`)}
                                                                         </AvatarFallback>
                                                                     </Avatar>
                                                                     <div className="min-w-0">
                                                                         <p className="font-medium">
                                                                             {activity.user.fname} {activity.user.lname}
                                                                         </p>
-                                                                        <p className="text-xs text-muted-foreground">
-                                                                            @{activity.user.username}
-                                                                        </p>
+                                                                        <p className="text-muted-foreground text-xs">@{activity.user.username}</p>
                                                                     </div>
                                                                 </div>
                                                             ) : (
@@ -429,27 +385,18 @@ export default function ActivityLogs() {
                                                         </td>
 
                                                         <td className="max-w-[420px] px-4 py-3">
-                                                            <p
-                                                                className="truncate"
-                                                                title={activity.description || undefined}
-                                                            >
+                                                            <p className="truncate" title={activity.description || undefined}>
                                                                 {activity.description || '—'}
                                                             </p>
                                                         </td>
 
                                                         <td className="px-4 py-3">
-                                                            <code className="rounded bg-muted px-2 py-1 text-xs">
-                                                                {activity.subject_type || '—'}
-                                                            </code>
+                                                            <code className="bg-muted rounded px-2 py-1 text-xs">{activity.subject_type || '—'}</code>
                                                         </td>
 
                                                         <td className="px-4 py-3 text-right whitespace-nowrap">
-                                                            <p className="text-xs font-medium">
-                                                                {formatDate(activity.created_at)}
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                {formatTime(activity.created_at)}
-                                                            </p>
+                                                            <p className="text-xs font-medium">{formatDate(activity.created_at)}</p>
+                                                            <p className="text-muted-foreground text-xs">{formatTime(activity.created_at)}</p>
                                                         </td>
                                                     </tr>
                                                 );
@@ -462,15 +409,10 @@ export default function ActivityLogs() {
                             {/* Pagination */}
                             {activities.last_page > 1 && (
                                 <div className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                                    <p className="text-sm text-muted-foreground">
-                                        Showing{' '}
-                                        {((activities.current_page - 1) * activities.per_page) + 1}
-                                        {' '}to{' '}
-                                        {Math.min(
-                                            activities.current_page * activities.per_page,
-                                            activities.total
-                                        )}{' '}
-                                        of {activities.total.toLocaleString()}
+                                    <p className="text-muted-foreground text-sm">
+                                        Showing {(activities.current_page - 1) * activities.per_page + 1} to{' '}
+                                        {Math.min(activities.current_page * activities.per_page, activities.total)} of{' '}
+                                        {activities.total.toLocaleString()}
                                     </p>
 
                                     <div className="flex flex-wrap items-center gap-1">
@@ -482,14 +424,8 @@ export default function ActivityLogs() {
                                                 preserveScroll
                                                 only={['activities']}
                                                 className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                                                    link.active
-                                                        ? 'bg-primary text-primary-foreground'
-                                                        : 'bg-muted hover:bg-muted/80'
-                                                } ${
-                                                    !link.url
-                                                        ? 'pointer-events-none opacity-40'
-                                                        : ''
-                                                }`}
+                                                    link.active ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+                                                } ${!link.url ? 'pointer-events-none opacity-40' : ''}`}
                                                 dangerouslySetInnerHTML={{ __html: link.label }}
                                             />
                                         ))}
@@ -547,15 +483,15 @@ function ActivityDetails({
             />
 
             <aside
-                className="relative h-full w-full max-w-lg overflow-y-auto border-l bg-background shadow-xl"
+                className="bg-background relative h-full w-full max-w-lg overflow-y-auto border-l shadow-xl"
                 role="dialog"
                 aria-modal="true"
                 aria-label="Activity details"
             >
-                <div className="sticky top-0 z-10 border-b bg-background/95 px-6 py-5 backdrop-blur">
+                <div className="bg-background/95 sticky top-0 z-10 border-b px-6 py-5 backdrop-blur">
                     <div className="flex items-start justify-between gap-4">
                         <div>
-                            <p className="text-sm text-muted-foreground">Activity details</p>
+                            <p className="text-muted-foreground text-sm">Activity details</p>
                             <h2 className="mt-1 text-xl font-semibold">Audit event</h2>
                         </div>
 
@@ -570,48 +506,34 @@ function ActivityDetails({
                         <Badge variant={badge.variant} className={badge.className}>
                             {badge.label}
                         </Badge>
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-muted-foreground text-sm">
                             {formatDate(activity.created_at)} · {formatTime(activity.created_at)}
                         </span>
                     </div>
 
                     <section className="space-y-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            User
-                        </p>
+                        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">User</p>
 
                         {activity.user ? (
                             <div className="flex items-center gap-3 rounded-lg border p-4">
                                 <Avatar className="h-10 w-10">
-                                    <AvatarFallback>
-                                        {getInitials(
-                                            `${activity.user.fname} ${activity.user.lname}`
-                                        )}
-                                    </AvatarFallback>
+                                    <AvatarFallback>{getInitials(`${activity.user.fname} ${activity.user.lname}`)}</AvatarFallback>
                                 </Avatar>
                                 <div>
                                     <p className="font-medium">
                                         {activity.user.fname} {activity.user.lname}
                                     </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        @{activity.user.username}
-                                    </p>
+                                    <p className="text-muted-foreground text-sm">@{activity.user.username}</p>
                                 </div>
                             </div>
                         ) : (
-                            <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                                System activity
-                            </div>
+                            <div className="text-muted-foreground rounded-lg border p-4 text-sm">System activity</div>
                         )}
                     </section>
 
                     <section className="space-y-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Description
-                        </p>
-                        <div className="rounded-lg border bg-muted/20 p-4 text-sm">
-                            {activity.description || 'No description provided.'}
-                        </div>
+                        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Description</p>
+                        <div className="bg-muted/20 rounded-lg border p-4 text-sm">{activity.description || 'No description provided.'}</div>
                     </section>
 
                     <section className="grid gap-4 sm:grid-cols-2">
@@ -629,7 +551,7 @@ function ActivityDetails({
 function Detail({ label, value }: { label: string; value: string }) {
     return (
         <div>
-            <p className="text-xs font-medium text-muted-foreground">{label}</p>
+            <p className="text-muted-foreground text-xs font-medium">{label}</p>
             <p className="mt-1 text-sm font-medium break-words">{value}</p>
         </div>
     );

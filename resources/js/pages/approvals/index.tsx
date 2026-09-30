@@ -67,9 +67,7 @@ function waitingLabel(request: ApprovalRequest): string {
 export default function ApprovalsIndex({ requests, offices, filters, counts }: ApprovalsIndexProps) {
     const [status, setStatus] = useState(filters.status && filters.status !== allValue ? filters.status : 'in_progress');
     const [type, setType] = useState(filters.type && filters.type !== allValue ? filters.type : allValue);
-    const [officeId, setOfficeId] = useState(
-        filters.office_id && filters.office_id !== allValue ? String(filters.office_id) : allValue,
-    );
+    const [officeId, setOfficeId] = useState(filters.office_id && filters.office_id !== allValue ? String(filters.office_id) : allValue);
 
     const applyFilters = (overrides: Record<string, string> = {}) => {
         const params: Record<string, string> = {
@@ -100,10 +98,16 @@ export default function ApprovalsIndex({ requests, offices, filters, counts }: A
             <Head title="Approvals" />
 
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <Heading
-                    title="Approvals"
-                    description="Requests still travelling the chain, oldest first. Your account is not tied to an office yet, so pick an office to narrow the queue."
-                />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <Heading
+                        title="Approvals"
+                        description="Requests still travelling the chain, oldest first. Your account is not tied to an office yet, so pick an office to narrow the queue."
+                    />
+
+                    <Link href={route('approvals.create')}>
+                        <Button>Submit for Approval</Button>
+                    </Link>
+                </div>
 
                 <Card>
                     <CardContent>
@@ -189,7 +193,10 @@ export default function ApprovalsIndex({ requests, offices, filters, counts }: A
                                     requests.data.map((request) => (
                                         <TableRow key={request.id}>
                                             <TableCell>
-                                                <Link href={route('subscriptions.show', request.subscription_id)} className="font-medium hover:underline">
+                                                <Link
+                                                    href={route('subscriptions.show', request.subscription_id)}
+                                                    className="font-medium hover:underline"
+                                                >
                                                     {request.subscription?.name ?? `Subscription #${request.subscription_id}`}
                                                 </Link>
                                                 <div className="text-muted-foreground text-sm">
@@ -229,8 +236,8 @@ export default function ApprovalsIndex({ requests, offices, filters, counts }: A
 
                         {requests.last_page > 1 && (
                             <div className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="text-sm text-muted-foreground">
-                                    Showing {((requests.current_page - 1) * requests.per_page) + 1} to{' '}
+                                <p className="text-muted-foreground text-sm">
+                                    Showing {(requests.current_page - 1) * requests.per_page + 1} to{' '}
                                     {Math.min(requests.current_page * requests.per_page, requests.total)} of {requests.total}
                                 </p>
 

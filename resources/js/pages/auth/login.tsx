@@ -1,6 +1,6 @@
 import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle, Eye, EyeOff } from 'lucide-react';
-import React, { FormEventHandler, useState } from 'react';
+import { Eye, EyeOff, LoaderCircle } from 'lucide-react';
+import { FormEventHandler, useState } from 'react';
 
 import InputError from '@/components/input-error';
 import TextLink from '@/components/text-link';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import AuthLayout from '@/layouts/auth-layout';
 
 interface LoginForm {
-     [key: string]: string | boolean;
+    [key: string]: string | boolean;
     email: string;
     password: string;
     remember: boolean;
@@ -77,13 +77,14 @@ export default function Login({ status, canResetPassword }: LoginProps) {
 
                     <div className="grid gap-2">
                         <div className="flex items-center">
-                            <Label htmlFor="password" className="text-auth-foreground">Password</Label>
+                            <Label htmlFor="password" className="text-auth-foreground">
+                                Password
+                            </Label>
                             {canResetPassword && (
-                                <TextLink href={route('password.request')} className="ml-auto text-sm text-auth-accent" tabIndex={5}>
+                                <TextLink href={route('password.request')} className="text-auth-accent ml-auto text-sm" tabIndex={5}>
                                     Forgot password?
                                 </TextLink>
                             )}
-                            
                         </div>
                         <div className="relative w-full">
                             <Input
@@ -100,7 +101,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-auth-muted hover:text-auth-foreground"
+                                className="text-auth-muted hover:text-auth-foreground absolute top-1/2 right-3 -translate-y-1/2"
                                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
                                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -122,7 +123,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     </Button>
                 </div>
 
-                <div className="text-center text-sm text-auth-muted">
+                <div className="text-auth-muted text-center text-sm">
                     Don't have an account?{' '}
                     <TextLink href={route('register')} tabIndex={5} className="text-auth-accent">
                         Sign up

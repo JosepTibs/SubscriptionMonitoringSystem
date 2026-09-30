@@ -11,7 +11,20 @@ import { useState } from 'react';
 
 type ApprovalAction = 'approve' | 'forward' | 'return';
 
-const actionCopy = {
+interface ActionCopy {
+    title: string;
+    description: string;
+    confirm: string;
+    nameField: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    /** Second typed name, only where the person releasing the papers can differ. */
+    senderField?: string;
+    senderLabel?: string;
+    senderPlaceholder?: string;
+}
+
+const actionCopy: Record<ApprovalAction, ActionCopy> = {
     approve: {
         title: 'Record approval',
         description: 'Signs off. Stays here until forwarded. Name the office head who approved.',
@@ -22,11 +35,14 @@ const actionCopy = {
     },
     forward: {
         title: 'Forward to next office',
-        description: 'Moves on. Inactive offices are skipped. Name the contact receiving the papers there.',
+        description: 'Moves on. Inactive offices are skipped. Name who is releasing the papers here and the contact receiving them there.',
         confirm: 'Forward',
         nameField: 'received_by_name',
         nameLabel: 'Received by',
         namePlaceholder: 'Contact at the next office',
+        senderField: 'sent_by_name',
+        senderLabel: 'Sent by',
+        senderPlaceholder: 'Person releasing the papers from this office',
     },
     return: {
         title: 'Return the request',
@@ -44,6 +60,7 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
     const [action, setAction] = useState<ApprovalAction | null>(null);
     const [remarks, setRemarks] = useState('');
     const [signatoryName, setSignatoryName] = useState('');
+    const [senderName, setSenderName] = useState('');
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState('');
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -82,6 +99,7 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
         setFieldErrors({});
         setRemarks('');
         setSignatoryName('');
+        setSenderName('');
         setAction(next);
     };
     const closeDialog = () => {
@@ -97,10 +115,11 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
         setError('');
         setFieldErrors({});
         const url = route('approval-requests.' + action, request.id);
-        const nameField = actionCopy[action].nameField;
+        const { nameField, senderField } = actionCopy[action];
+        const sentBy = senderField != null ? { [senderField]: senderName } : {};
         router.patch(
             url,
-            { remarks: remarks, [nameField]: signatoryName },
+            { remarks: remarks, [nameField]: signatoryName, ...sentBy },
             {
                 preserveScroll: true,
                 onError: (errors) => {
@@ -112,6 +131,7 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
                     setAction(null);
                     setRemarks('');
                     setSignatoryName('');
+                    setSenderName('');
                 },
                 onFinish: () => {
                     setProcessing(false);
@@ -121,6 +141,7 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
     };
 
     const nameError = action != null ? (fieldErrors[actionCopy[action].nameField] ?? '') : '';
+    const senderError = action != null && actionCopy[action].senderField != null ? (fieldErrors[actionCopy[action].senderField] ?? '') : '';
     const remarksError = fieldErrors.remarks ?? '';
 
     return (
@@ -163,6 +184,19 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
                                 />
                                 <InputError message={nameError} />
                             </div>
+                            {actionCopy[action].senderField != null ? (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="approval-sender">{actionCopy[action].senderLabel}</Label>
+                                    <Input
+                                        id="approval-sender"
+                                        value={senderName}
+                                        onChange={(event) => setSenderName(event.target.value)}
+                                        placeholder={actionCopy[action].senderPlaceholder}
+                                        required
+                                    />
+                                    <InputError message={senderError} />
+                                </div>
+                            ) : null}
                             <div className="grid gap-2">
                                 <Label htmlFor="approval-remarks">Remarks</Label>
                                 <textarea

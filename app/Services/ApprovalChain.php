@@ -66,21 +66,25 @@ class ApprovalChain
 
             foreach ($steps as $index => $step) {
                 // The papers are already with the first office once ICT submits
-                // them, so that step starts as received with the contact ICT
-                // typed in. Later steps stay pending until forward() hands them
-                // over. Without a receiver recorded (tests/direct calls) the
-                // legacy pending shape is kept.
-                $isFirstStep = $index === 0;
+                // them, so the step the pointer lands on starts as received
+                // today, with the contact ICT typed in when one was given
+                // (scope.md §1: never the acting account). Later steps stay
+                // pending until forward() hands them over.
+                //
+                // The pointer can land past step 1 when the flow's first office
+                // is deactivated, so the receive stamp follows $firstStep
+                // rather than the snapshot's first row.
+                $isReceivingStep = $firstStep !== null && $step->id === $firstStep->id;
 
                 ApprovalRequestStep::create([
                     'approval_request_id' => $request->id,
                     'office_id' => $step->office_id,
                     'step_order' => $index + 1,
-                    'status' => $isFirstStep && $receivedByName !== null
+                    'status' => $isReceivingStep
                         ? ApprovalRequestStep::STATUS_RECEIVED
                         : ApprovalRequestStep::STATUS_PENDING,
-                    'received_by_name' => $isFirstStep ? $receivedByName : null,
-                    'received_at' => $isFirstStep && $receivedByName !== null ? now() : null,
+                    'received_by_name' => $isReceivingStep ? $receivedByName : null,
+                    'received_at' => $isReceivingStep ? now() : null,
                 ]);
             }
 

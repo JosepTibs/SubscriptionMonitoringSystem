@@ -2,6 +2,8 @@ import { LucideIcon } from 'lucide-react';
 
 export interface Auth {
     user: User;
+    /** Whether this account may correct or erase recorded trail entries. */
+    can_edit_trail: boolean;
 }
 
 export interface BreadcrumbItem {
@@ -37,6 +39,11 @@ export interface Office {
     subscriptions_count?: number;
 }
 
+export interface Owner {
+    id: number;
+    name: string;
+}
+
 export interface ApprovalFlowStep {
     id: number;
     approval_flow_id: number;
@@ -66,6 +73,8 @@ export interface ApprovalRequestStep {
     acted_at: string | null;
     received_by_name: string | null;
     received_at: string | null;
+    forwarded_by_name: string | null;
+    forwarded_at: string | null;
     remarks: string | null;
     office?: Office | null;
     actor?: User | null;
@@ -116,8 +125,8 @@ export interface Subscription {
     cost: string;
     billing_interval: number;
     billing_interval_unit: 'month' | 'year';
-    start_date: string;
-    renewal_date: string;
+    start_date: string | null;
+    renewal_date: string | null;
     office_id: number | null;
     owner_id: number | null;
     approval_flow_id: number | null;
@@ -125,10 +134,10 @@ export interface Subscription {
     approval_flow?: ApprovalFlow | null;
     description: string | null;
     office?: Office | null;
-    owner?: User | null;
+    owner?: Owner | null;
     renewals?: Renewal[];
     approval_requests?: ApprovalRequest[];
-    days_until_renewal?: number;
+    days_until_renewal?: number | null;
     [key: string]: unknown;
 }
 

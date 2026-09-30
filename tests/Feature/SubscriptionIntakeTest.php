@@ -6,9 +6,11 @@ use App\Models\ApprovalRequest;
 use App\Models\ApprovalRequestStep;
 use App\Models\AuditLog;
 use App\Models\Office;
+use App\Models\Owner;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
 
@@ -215,4 +217,117 @@ it('rejects an unknown intake mode', function () {
         ->assertSessionHasErrors('intake_mode');
 
     expect(Subscription::count())->toBe(0);
+});
+
+it('registers a subscription for approval without any dates', function () {
+    actingUser();
+    $flow = ApprovalFlow::factory()->default()->create();
+    $office = Office::factory()->create();
+    ApprovalFlowStep::create([
+        'approval_flow_id' => $flow->id,
+        'office_id' => $office->id,
+        'step_order' => 1,
+    ]);
+
+    // The approvals intake sends no dates: a submission that has not cleared
+    // its chain has no confirmed start or renewal date yet.
+    $payload = validSubscriptionPayload([
+        'intake_mode' => 'for_approval',
+        'received_by_name' => 'Records Clerk',
+    ]);
+
+    unset($payload['start_date'], $payload['renewal_date']);
+
+    $this->actingAs(actingUser())
+        ->post(route('subscriptions.store'), $payload)
+        ->assertRedirect();
+
+    $subscription = Subscription::first();
+
+    expect($subscription->start_date)->toBeNull()
+        ->and($subscription->renewal_date)->toBeNull()
+        ->and($subscription->status)->toBe('pending_approval')
+        ->and(ApprovalRequest::where('subscription_id', $subscription->id)->exists())->toBeTrue();
+});
+
+it('still requires dates when a subscription is created as already approved', function () {
+    actingUser();
+
+    $payload = validSubscriptionPayload(['intake_mode' => 'approved']);
+
+    unset($payload['start_date'], $payload['renewal_date']);
+
+    $this->actingAs(actingUser())
+        ->post(route('subscriptions.store'), $payload)
+        ->assertSessionHasErrors(['start_date', 'renewal_date']);
+
+    expect(Subscription::count())->toBe(0);
+});
+
+it('keeps a pending subscription editable while it waits on a chain', function () {
+    $subscription = Subscription::factory()->create([
+        'status' => 'pending_approval',
+        'start_date' => null,
+        'renewal_date' => null,
+    ]);
+
+    $this->actingAs(actingUser())
+        ->put(route('subscriptions.update', $subscription), [
+            'provider' => $subscription->provider,
+            'name' => 'Renamed while pending',
+            'cost' => $subscription->cost,
+            'billing_interval' => (string) $subscription->billing_interval,
+            'billing_interval_unit' => $subscription->billing_interval_unit,
+            'status' => $subscription->status,
+            'description' => null,
+        ])
+        ->assertRedirect();
+
+    expect($subscription->refresh()->name)->toBe('Renamed while pending')
+        ->and($subscription->renewal_date)->toBeNull();
+});
+
+it('stores the department that owns the subscription', function () {
+    $owner = Owner::factory()->create(['name' => 'ICT Department']);
+
+    $this->actingAs(actingUser())
+        ->post(route('subscriptions.store'), validSubscriptionPayload([
+            'intake_mode' => 'approved',
+            'owner_id' => (string) $owner->id,
+        ]))
+        ->assertRedirect();
+
+    $subscription = Subscription::first();
+
+    expect($subscription->owner_id)->toBe($owner->id)
+        ->and($subscription->owner->name)->toBe('ICT Department');
+});
+
+it('rejects an owner_id that is not a department', function () {
+    $user = actingUser();
+
+    $this->actingAs($user)
+        ->post(route('subscriptions.store'), validSubscriptionPayload([
+            'intake_mode' => 'approved',
+            'owner_id' => (string) $user->id,
+        ]))
+        ->assertSessionHasErrors('owner_id');
+
+    expect(Subscription::count())->toBe(0);
+});
+
+it('renders the approval intake form with its options', function () {
+    Office::factory()->create(['name' => 'Records Office']);
+    Owner::factory()->create(['name' => 'ICT Department']);
+    ApprovalFlow::factory()->create(['name' => 'Procurement']);
+
+    $this->actingAs(actingUser())
+        ->get(route('approvals.create'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('approvals/create')
+            ->has('offices')
+            ->has('owners')
+            ->has('approval_flows')
+        );
 });

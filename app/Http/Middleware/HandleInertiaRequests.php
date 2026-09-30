@@ -44,6 +44,10 @@ class HandleInertiaRequests extends Middleware
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user(),
+                // Roles are not shared with the client, so the trail's edit
+                // affordances are told separately whether this account may
+                // correct or erase what has already been recorded.
+                'can_edit_trail' => (bool) ($request->user()?->hasRole('admin') || $request->user()?->hasRole('superadmin')),
             ],
         ]);
     }

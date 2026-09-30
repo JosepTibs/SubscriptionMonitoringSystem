@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityLogsController;
 use App\Http\Controllers\ApprovalFlowController;
 use App\Http\Controllers\ApprovalRequestController;
+use App\Http\Controllers\ApprovalRequestStepController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OfficeController;
 use App\Http\Controllers\ProfileController;
@@ -30,6 +31,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('subscriptions.renewals.store');
 
     Route::get('approvals', [ApprovalRequestController::class, 'index'])->name('approvals.index');
+    Route::get('approvals/create', [ApprovalRequestController::class, 'create'])->name('approvals.create');
 
     Route::patch('approval-requests/{approval_request}/approve', [ApprovalRequestController::class, 'approve'])
         ->name('approval-requests.approve');
@@ -37,6 +39,13 @@ Route::middleware(['auth'])->group(function () {
         ->name('approval-requests.forward');
     Route::patch('approval-requests/{approval_request}/return', [ApprovalRequestController::class, 'return'])
         ->name('approval-requests.return');
+
+    // Administrative corrections to an already-recorded trail row. The runtime
+    // stamps its own dates, so this is the only path that may change them.
+    Route::patch('approval-request-steps/{approvalRequestStep}', [ApprovalRequestStepController::class, 'update'])
+        ->name('approval-request-steps.update');
+    Route::delete('approval-request-steps/{approvalRequestStep}', [ApprovalRequestStepController::class, 'destroy'])
+        ->name('approval-request-steps.destroy');
 
     Route::resource('offices', OfficeController::class)->except(['destroy', 'create', 'edit']);
     Route::patch('offices/{office}/toggle-active', [OfficeController::class, 'toggleActive'])

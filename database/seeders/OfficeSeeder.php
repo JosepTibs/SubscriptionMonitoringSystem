@@ -14,11 +14,9 @@ class OfficeSeeder extends Seeder
     public function run(): void
     {
         $chain = [
-            ['name' => 'Requesting Office', 'sort_order' => 10],
-            ['name' => 'ICT', 'sort_order' => 20],
-            ['name' => 'Budget', 'sort_order' => 30],
-            ['name' => 'Accounting', 'sort_order' => 40],
-            ['name' => 'Head', 'sort_order' => 50],
+            ['name' => 'ICT', 'sort_order' => 10],
+            ['name' => 'BUDGET', 'sort_order' => 20],
+            ['name' => 'ADMIN', 'sort_order' => 30],
         ];
 
         foreach ($chain as $office) {

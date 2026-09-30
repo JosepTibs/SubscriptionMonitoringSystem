@@ -14,7 +14,7 @@ const mainNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'Approvals',
+        title: 'Requests',
         url: '/approvals',
         icon: ClipboardCheck,
     },

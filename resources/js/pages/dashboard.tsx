@@ -46,7 +46,7 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                 <div className="grid auto-rows-min gap-4 md:grid-cols-4">
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
+                            <CardTitle className="text-muted-foreground text-sm font-medium">Active</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold">{stats.active}</p>
@@ -54,7 +54,7 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Expiring 30 days</CardTitle>
+                            <CardTitle className="text-muted-foreground text-sm font-medium">Expiring 30 days</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold">{stats.expiring_soon}</p>
@@ -62,15 +62,15 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Overdue</CardTitle>
+                            <CardTitle className="text-muted-foreground text-sm font-medium">Overdue</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-2xl font-bold text-destructive">{stats.overdue}</p>
+                            <p className="text-destructive text-2xl font-bold">{stats.overdue}</p>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Active spend</CardTitle>
+                            <CardTitle className="text-muted-foreground text-sm font-medium">Active spend</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold">{formatPeso(stats.total_cost)}</p>
@@ -89,7 +89,7 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                     <div className="overflow-x-auto px-0 pb-4">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-muted-foreground">
+                                <tr className="text-muted-foreground border-b text-left">
                                     <th className="px-4 py-3 font-medium">Name</th>
                                     <th className="px-4 py-3 font-medium">Renewal</th>
                                     <th className="px-4 py-3 font-medium">Status</th>
@@ -99,7 +99,7 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                             <tbody>
                                 {dueInOneMonth.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
+                                        <td colSpan={4} className="text-muted-foreground px-4 py-10 text-center">
                                             Nothing due in the next 30 days.
                                         </td>
                                     </tr>
@@ -107,7 +107,7 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                                 {dueInOneMonth.map((sub) => {
                                     const r = daysLabel(sub);
                                     return (
-                                        <tr key={sub.id} className="border-b transition-colors last:border-0 hover:bg-muted/50">
+                                        <tr key={sub.id} className="hover:bg-muted/50 border-b transition-colors last:border-0">
                                             <td className="px-4 py-3">
                                                 <Link href={route('subscriptions.show', sub.id)} className="font-medium hover:underline">
                                                     {sub.name}

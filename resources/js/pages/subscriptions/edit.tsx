@@ -1,6 +1,6 @@
 import Heading from '@/components/heading';
 import AppLayout from '@/layouts/app-layout';
-import { type ApprovalFlow, type BreadcrumbItem, type Office, type Subscription } from '@/types';
+import { type ApprovalFlow, type BreadcrumbItem, type Office, type Owner, type Subscription } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import SubscriptionForm, { type SubscriptionFormData } from './partials/subscription-form';
@@ -8,7 +8,7 @@ import SubscriptionForm, { type SubscriptionFormData } from './partials/subscrip
 interface EditProps {
     subscription: Subscription;
     offices: Office[];
-    owners: { id: number; name: string }[];
+    owners: Owner[];
     approval_flows: ApprovalFlow[];
 }
 
@@ -19,8 +19,8 @@ export default function EditSubscription({ subscription, offices, owners, approv
         cost: subscription.cost,
         billing_interval: String(subscription.billing_interval),
         billing_interval_unit: subscription.billing_interval_unit,
-        start_date: subscription.start_date,
-        renewal_date: subscription.renewal_date,
+        start_date: subscription.start_date ?? '',
+        renewal_date: subscription.renewal_date ?? '',
         office_id: subscription.office_id ? String(subscription.office_id) : 'none',
         owner_id: subscription.owner_id ? String(subscription.owner_id) : 'none',
         approval_flow_id: subscription.approval_flow_id ? String(subscription.approval_flow_id) : 'none',
@@ -67,6 +67,7 @@ export default function EditSubscription({ subscription, offices, owners, approv
                     owners={owners}
                     approvalFlows={approval_flows}
                     subscription={subscription}
+                    datesRequired={subscription.status !== 'pending_approval'}
                 />
             </div>
         </AppLayout>

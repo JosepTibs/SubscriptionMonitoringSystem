@@ -1,6 +1,5 @@
-import ApprovalActions from '@/components/approval-actions';
+import ApprovalTrailTable from '@/components/approval-trail-table';
 import RenewalReviewSheet from '@/components/renewal-review-sheet';
-import RenewalTimeline from '@/components/renewal-timeline';
 import StatusBadge from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,8 +32,8 @@ export default function ShowSubscription({
 }: {
     subscription: Subscription;
     approval_requests: ApprovalRequest[];
-    days_until_renewal: number;
-    suggested_renewal_date: string;
+    days_until_renewal: number | null;
+    suggested_renewal_date: string | null;
     suggested_cost: string;
 }) {
     const { patch, processing } = useForm();
@@ -62,10 +61,10 @@ export default function ShowSubscription({
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {subscription.status !== 'cancelled' && (
+                        {subscription.status !== 'cancelled' && subscription.renewal_date !== null && (
                             <RenewalReviewSheet
                                 subscription={subscription}
-                                suggested_renewal_date={suggested_renewal_date}
+                                suggested_renewal_date={suggested_renewal_date ?? subscription.renewal_date}
                                 suggested_cost={suggested_cost}
                             />
                         )}
@@ -82,19 +81,9 @@ export default function ShowSubscription({
                     </div>
                 </div>
 
-                <RenewalTimeline request={activeRequest ?? approval_requests?.[0] ?? null} />
-
-                {activeRequest && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-                        <div>
-                            <p className="text-sm font-medium">Waiting for approval</p>
-                            <p className="text-muted-foreground text-xs">
-                                Currently at {activeRequest.current_office?.name ?? 'the next office'}. Approve it here, forward it on, or return it.
-                            </p>
-                        </div>
-                        <ApprovalActions request={activeRequest} />
-                    </div>
-                )}
+                {approval_requests?.map((request) => (
+    <ApprovalTrailTable key={request.id} request={request} />
+))}
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <Card>
@@ -117,13 +106,19 @@ export default function ShowSubscription({
                             <Detail
                                 label="Days until renewal"
                                 value={
-                                    subscription.status === 'cancelled'
+                                    subscription.status === 'cancelled' || days_until_renewal === null
                                         ? '—'
                                         : days_until_renewal < 0
                                           ? `${Math.abs(days_until_renewal)} days overdue`
                                           : `${days_until_renewal} days`
                                 }
                             />
+                            {subscription.renewal_date === null && (
+                                <p className="text-muted-foreground text-xs sm:col-span-2">
+                                    Start and renewal dates are recorded once this subscription clears its approval chain.
+                                </p>
+                            )}
+
                             <div className="grid gap-1 sm:col-span-2">
                                 <span className="text-muted-foreground text-xs">Remarks / notes</span>
                                 <span className="text-sm">{subscription.description ?? '—'}</span>

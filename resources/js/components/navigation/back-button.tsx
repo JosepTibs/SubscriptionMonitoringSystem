@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
 import { goBack } from '@/components/navigation/use-go-back';
+import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
 interface BackButtonProps {
@@ -23,24 +23,9 @@ interface BackButtonProps {
  * replaces the fragile `window.history.back()` calls that got users "stuck" on
  * the same page after a refresh.
  */
-export default function BackButton({
-    defaultUrl,
-    preferred,
-    label = 'Back',
-    variant = 'outline',
-    size = 'sm',
-    className,
-    ...rest
-}: BackButtonProps) {
+export default function BackButton({ defaultUrl, preferred, label = 'Back', variant = 'outline', size = 'sm', className, ...rest }: BackButtonProps) {
     return (
-        <Button
-            type="button"
-            variant={variant}
-            size={size}
-            className={className}
-            onClick={() => goBack(defaultUrl, preferred)}
-            {...rest}
-        >
+        <Button type="button" variant={variant} size={size} className={className} onClick={() => goBack(defaultUrl, preferred)} {...rest}>
             <ArrowLeft className={label ? 'mr-2 h-4 w-4' : 'h-4 w-4'} />
             {label}
         </Button>
