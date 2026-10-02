@@ -86,6 +86,7 @@ class ApprovalRequestController extends Controller
                     ->count(),
             ],
         ]);
+
     }
 
     /**

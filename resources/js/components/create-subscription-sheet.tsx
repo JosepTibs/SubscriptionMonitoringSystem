@@ -13,15 +13,6 @@ interface CreateSubscriptionSheetProps {
     approvalFlows: ApprovalFlow[];
 }
 
-/**
- * Where each mode returns to once the record exists. Whitelisted server-side
- * by store() so this can never be turned into an open redirect.
- */
-const returnRoutes: Record<IntakeMode, string> = {
-    approved: 'subscriptions.index',
-    for_approval: 'approvals.index',
-};
-
 const copy: Record<IntakeMode, { trigger: string; title: string; description: string; submitLabel: string }> = {
     approved: {
         trigger: 'New Subscription',
@@ -45,6 +36,18 @@ const copy: Record<IntakeMode, { trigger: string; title: string; description: st
  * The two intakes differ only in their shape, so one component covers both: an
  * approved subscription captures its dates up front, while one bound for a
  * chain has none yet and is parked in pending approval by the server.
+ */
+/**
+ * Both intakes leave the redirect to the server.
+ *
+ * store() sends the caller to the new subscription unless it is given a
+ * whitelisted return_to, and the dedicated Submit for Approval page at
+ * /approvals/create has always relied on that default. The sheet matches it, so
+ * one intake behaves the same way whichever page it was opened from; the trail
+ * for a submission that is still travelling is on that subscription's own page.
+ *
+ * The server keeps return_to whitelisted to the two index routes, so nothing
+ * here can be turned into an open redirect.
  */
 export default function CreateSubscriptionSheet({ mode, owners, approvalFlows }: CreateSubscriptionSheetProps) {
     const [open, setOpen] = useState(false);
@@ -71,7 +74,6 @@ export default function CreateSubscriptionSheet({ mode, owners, approvalFlows }:
         transform((payload) => ({
             ...payload,
             intake_mode: mode,
-            return_to: returnRoutes[mode],
             owner_id: payload.owner_id === 'none' ? null : payload.owner_id,
             approval_flow_id: payload.approval_flow_id === 'none' ? null : payload.approval_flow_id,
             // Left empty on purpose: a submission that has not cleared its

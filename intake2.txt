@@ -1,0 +1,23 @@
+
+  [41;1m ParseError [49;22m
+
+[39;1m  Unmatched '}'[39;22m
+
+  at [32mtests\Feature\SubscriptionIntakeTest.php[39m:[32m266[39m
+    262▕ });
+    263▕ 
+    264▕ 
+    265▕     expect(Subscription::count())->toBe(0);
+  ➜ 266▕ });
+    267▕ 
+    268▕ it('registers a subscription for approval without any dates', function () {
+    269▕     actingUser();
+    270▕     $flow = ApprovalFlow::factory()->default()->create();
+
+  [33m1   [39m[39;1mvendor\pestphp\pest\overrides\Runner\TestSuiteLoader.php[39;22m:[39;1m98[39;22m
+  [90m    PHPUnit\Runner\TestSuiteLoader::PHPUnit\Runner\{closure}()[39m
+
+  [33m2   [39m[39;1mvendor\phpunit\phpunit\src\TextUI\Configuration\TestSuiteBuilder.php[39;22m:[39;1m113[39;22m
+  [90m    PHPUnit\Runner\TestSuiteLoader::load("C:\xampp\htdocs\SubscriptionMonitoringSystem\tests\Feature\SubscriptionIntakeTest.php")[39m
+
+

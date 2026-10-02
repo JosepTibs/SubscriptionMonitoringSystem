@@ -1,0 +1,12 @@
+
+   PASS  Tests\Feature\ApprovalStepSaveOrderTest
+  ✓ it accepts a whole step recorded in one pass, in order                                                       4.03s  
+  ✓ it refuses to release a step that was never approved                                                         2.65s  
+  ✓ it records the receiver without touching the signatory or the release                                        0.08s  
+  ✓ it completes the chain on the final office, which has no release of its own                                  0.09s  
+  ✓ it leaves the destination receiver to be recorded on arrival                                                 0.09s  
+  ✓ it still records a release that happened before a later office was deactivated                               0.09s  
+
+  Tests:    6 passed (39 assertions)
+  Duration: 9.47s
+

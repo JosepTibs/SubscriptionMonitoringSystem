@@ -220,6 +220,67 @@ it('rejects an unknown intake mode', function () {
     expect(Subscription::count())->toBe(0);
 });
 
+it('sends an approved intake to the new subscription, since the sheet no longer asks to stay', function () {
+    $user = actingUser();
+
+    // The create sheet omits return_to for an approved subscription so the
+    // finished record is opened rather than the list it was entered from.
+    $this->actingAs($user)
+        ->post(route('subscriptions.store'), validSubscriptionPayload([
+            'intake_mode' => 'approved',
+        ]))
+        ->assertRedirect(route('subscriptions.show', Subscription::first()));
+});
+
+it('sends a for_approval intake to the new subscription, matching the dedicated create page', function () {
+    $user = actingUser();
+    $flow = ApprovalFlow::factory()->create();
+    $office = Office::factory()->create();
+
+    ApprovalFlowStep::create([
+        'approval_flow_id' => $flow->id,
+        'office_id' => $office->id,
+        'step_order' => 1,
+    ]);
+
+    // Both the sheet and /approvals/create omit return_to, so one intake lands
+    // in the same place whichever page it was opened from.
+    $this->actingAs($user)
+        ->post(route('subscriptions.store'), validSubscriptionPayload([
+            'intake_mode' => 'for_approval',
+            'approval_flow_id' => (string) $flow->id,
+        ]))
+        ->assertRedirect(route('subscriptions.show', Subscription::first()));
+});
+
+it('still honours a whitelisted return_to when one is sent', function () {
+    $user = actingUser();
+
+    // The server keeps supporting the two index routes, so a caller that does
+    // ask to stay put is still redirected there.
+    $this->actingAs($user)
+        ->post(route('subscriptions.store'), validSubscriptionPayload([
+            'intake_mode' => 'approved',
+            'return_to' => 'subscriptions.index',
+        ]))
+        ->assertRedirect(route('subscriptions.index'));
+});
+
+it('refuses a return_to outside the whitelisted index routes', function () {
+    $user = actingUser();
+
+    // The whitelist is what keeps return_to from becoming an open redirect, so
+    // the guard is worth keeping even though the sheet no longer offers it.
+    $this->actingAs($user)
+        ->post(route('subscriptions.store'), validSubscriptionPayload([
+            'intake_mode' => 'approved',
+            'return_to' => 'https://example.com',
+        ]))
+        ->assertSessionHasErrors('return_to');
+
+    expect(Subscription::count())->toBe(0);
+});
+
 it('registers a subscription for approval without any dates', function () {
     actingUser();
     $flow = ApprovalFlow::factory()->default()->create();

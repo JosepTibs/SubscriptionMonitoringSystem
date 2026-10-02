@@ -27,11 +27,10 @@ the **only** users.
    **Approved by** = the person who approved — usually the **office head** —
    whose approval is what permits forwarding.
 3. `acted_by` (FK → `users`) records **the ICT staff account that encoded the
-   entry**. Keep it distinct from the typed names.
+   entry**. Keep it disnotiftinct from the typed names.
 4. Do **not** add office-scoped authorization, "my office" queues, per-office
    permissions, or receipt confirmation by other offices.
-5. Do **not** add notifications/email addressed to other offices.
-6. Keep all data entry with ICT. Any feature that requires another office to *do*
+5. Keep all data entry with ICT. Any feature that requires another office to *do*
    something in the system is out of scope by definition.
 
 ## Retractions

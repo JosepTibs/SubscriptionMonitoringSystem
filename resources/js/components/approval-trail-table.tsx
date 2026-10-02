@@ -206,11 +206,13 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
     // records who sent them, and the receiver is typed in when they arrive.
     const destination = editableIndex < 0 ? null : (steps.slice(editableIndex + 1).find((step) => step.office?.is_active ?? true) ?? null);
 
-    // The last office has nowhere to release the papers to, so "Sent by" and
-    // "Date sent" are not merely empty there - they describe an event that will
-    // never happen, and offering them invited a release the runtime refuses. The
-    // column pair is dropped from the head and the body together so the two
-    // never drift out of alignment, including inside the correction editor.
+    // Whether this step can release the papers to another office.
+    //
+    // The last office has nowhere to send them, so it offers no release input
+    // and the check stops after the approval. The columns themselves stay: a
+    // step can still carry a recorded release, whether because its successor
+    // was deactivated and skipped, or because the papers came back around, so
+    // hiding the pair would hide history an audit table has to keep.
     const hasDestination = destination !== null;
 
     /** What the step already holds for a fill field, so a gap is a real one. */
@@ -361,20 +363,13 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
 
     const rows = trailRows(request);
 
-    const fillHint =
-        editableStep === null
-            ? 'Every row records who received, who approved and who released the papers at that office.'
-            : destination === null
-              ? 'Type who received and who approved at the highlighted office - each date is stamped as soon as the name is saved, and the final approval completes the chain.'
-              : 'Type who received, who approved and who released the papers at the highlighted office - each date is stamped as soon as the name is saved, and naming the sender hands the papers to the next office.';
+   
+          
 
     // The order the runtime accepts, spelled out where the inputs are rather
     // than only in the refusal dialog: the sender cannot be recorded before the
     // step is approved, and the table would otherwise invite that attempt.
-    const orderHint =
-        destination === null
-            ? 'Record in order: Received by → Approved by. The final approval completes the chain.'
-            : 'Record in order: Received by → Approved by → Sent by. Approving signs off the step; the sender can only be recorded afterwards.';
+    
 
     // Administrative corrections: one recorded row unlocked at a time.
     const [editingRowId, setEditingRowId] = useState<number | null>(null);
@@ -419,8 +414,6 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                 </div>
             </CardHeader>
             <CardContent>
-                <p className="text-muted-foreground mb-2 text-xs">{fillHint}</p>
-                {editableStep !== null && <p className="text-muted-foreground mb-2 text-xs font-medium">{orderHint}</p>}
                 <div className="overflow-x-auto">
                     <Table className="min-w-250">
                         <TableHeader>
@@ -431,8 +424,8 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                 <TableHead>Date received</TableHead>
                                 <TableHead>Approved by</TableHead>
                                 <TableHead>Date approved</TableHead>
-                                {hasDestination && <TableHead>Sent by</TableHead>}
-                                {hasDestination && <TableHead>Date sent</TableHead>}
+                                <TableHead>Sent by</TableHead>
+                                <TableHead>Date sent</TableHead>
                                 <TableHead>Status</TableHead>
                                 {canEditTrail && <TableHead className="w-20 text-right">Trail</TableHead>}
                                 <TableHead className="w-12" />
@@ -516,34 +509,36 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {hasDestination &&
-                                                (isEditing ? (
-                                                    <ValueCell field="forwarded_by_name" draft={editDraft} setDraft={setEditDraft} error={fieldErrors.forwarded_by_name} />
-                                                ) : isEditable ? (
-                                                    <NameField
-                                                        field="sent_by_name"
-                                                        label="Sent by"
-                                                        placeholder="Person releasing the papers"
-                                                        draft={draft}
-                                                        setDraft={setDraft}
-                                                        error={fieldErrors.sent_by_name}
-                                                        disabled={submitting}
-                                                        onBlur={() => saveField('forward', 'sent_by_name', 'Sent by')}
-                                                        onEnter={saveRow}
-                                                    />
-                                                ) : (
-                                                    (row.sentBy ?? '—')
-                                                ))}
+                                            {!hasDestination ? (
+                                                row.sentBy ?? '—'
+                                            ) : isEditing ? (
+                                                <ValueCell field="forwarded_by_name" draft={editDraft} setDraft={setEditDraft} error={fieldErrors.forwarded_by_name} />
+                                            ) : isEditable ? (
+                                                <NameField
+                                                    field="sent_by_name"
+                                                    label="Sent by"
+                                                    placeholder="Person releasing the papers"
+                                                    draft={draft}
+                                                    setDraft={setDraft}
+                                                    error={fieldErrors.sent_by_name}
+                                                    disabled={submitting}
+                                                    onBlur={() => saveField('forward', 'sent_by_name', 'Sent by')}
+                                                    onEnter={saveRow}
+                                                />
+                                            ) : (
+                                                (row.sentBy ?? '—')
+                                            )}
                                         </TableCell>
                                         <TableCell>
-                                            {hasDestination &&
-                                                (isEditing ? (
-                                                    <ValueCell field="forwarded_at" draft={editDraft} setDraft={setEditDraft} type="date" error={fieldErrors.forwarded_at} />
-                                                ) : row.sentAt ? (
-                                                    formatDate(row.sentAt)
-                                                ) : (
-                                                    '—'
-                                                ))}
+                                            {!hasDestination ? (
+                                                row.sentAt ? formatDate(row.sentAt) : '—'
+                                            ) : isEditing ? (
+                                                <ValueCell field="forwarded_at" draft={editDraft} setDraft={setEditDraft} type="date" error={fieldErrors.forwarded_at} />
+                                            ) : row.sentAt ? (
+                                                formatDate(row.sentAt)
+                                            ) : (
+                                                '—'
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col items-start gap-1">
@@ -584,46 +579,13 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                             </TableCell>
                                         )}
 
-                                        {/*
-                                            The row's own check sits last, beside the
-                                            trail controls, and records the step in
-                                            the order the runtime accepts. It is a
-                                            column of its own rather than part of
-                                            the trail cluster because the pencil
-                                            is admin-only, and every ICT account
-                                            has to be able to record a step.
-                                        */}
-                                        <TableCell>
-                                            {isEditable && !isEditing && (
-                                                <div className="flex justify-end">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        title={hasDestination ? 'Save this step and release the papers' : 'Save this step and complete the chain'}
-                                                        onClick={saveRow}
-                                                        disabled={submitting}
-                                                    >
-                                                        <Check className="size-4" />
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </TableCell>
                                     </TableRow>
                                 );
                             })}
                         </TableBody>
                     </Table>
                 </div>
-                {editableStep !== null && (
-                    <p className="text-muted-foreground mt-3 text-xs">
-                        {hasDestination
-                            ? `Leaving a field records that one name. The check at the end of the row records the whole step and hands the papers to ${
-                                  destination.office?.name ?? 'the next office'
-                              }.`
-                            : 'Leaving a field records that one name. The check at the end of the row records the step, and the final approval completes the chain.'}
-                    </p>
-                )}
+                
                 {request.type === 'renewal' && request.renewal && (
                     <p className="text-muted-foreground mt-4 text-xs">
                         Proposed renewal: <strong>{formatDate(request.renewal.new_renewal_date)}</strong> · <strong>{formatPeso(request.renewal.new_cost)}</strong>
