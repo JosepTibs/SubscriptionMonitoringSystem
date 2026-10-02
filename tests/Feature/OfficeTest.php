@@ -136,9 +136,7 @@ test('papers move from the approved bucket to released when forwarded', function
             ->where('counts.released', 0)
             ->where('history.data.0.approved_by_name', 'Budget Head'));
 
-    $this->patch(route('approval-requests.forward', $request), [
-        'received_by_name' => 'Accounting Clerk',
-    ])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request))->assertRedirect();
 
     $this->get(route('offices.show', $first).'?status=released')
         ->assertInertia(fn ($page) => $page
@@ -157,7 +155,6 @@ test('returned papers appear under the returned bucket', function () {
     [, $request] = officeShowRequest($office);
 
     $this->patch(route('approval-requests.return', $request), [
-        'remarks' => 'Missing annex',
         'approved_by_name' => 'Budget Head',
     ])->assertRedirect();
 

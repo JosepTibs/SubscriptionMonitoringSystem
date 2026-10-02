@@ -31,10 +31,6 @@ class RenewalsController extends Controller
             'new_renewal_date' => ['nullable', 'date', 'required_if:decision,renewed'],
             'new_cost' => ['nullable', 'numeric', 'min:0', 'required_if:decision,renewed'],
             'remarks' => ['nullable', 'string'],
-            // The contact receiving the papers at the first office. Renewed and
-            // pending decisions travel the chain; a cancellation never reaches
-            // an office, so it needs no receiver.
-            'received_by_name' => ['required_unless:decision,cancelled', 'nullable', 'string', 'max:255'],
         ]);
 
         $requiresApproval = $validated['decision'] !== 'cancelled';
@@ -59,7 +55,7 @@ class RenewalsController extends Controller
             ]);
 
             if ($flow instanceof ApprovalFlow) {
-                $this->openRenewalRequest($subscription, $renewal, $flow, $request->user(), $validated['received_by_name']);
+                $this->openRenewalRequest($subscription, $renewal, $flow, $request->user());
 
                 return;
             }
@@ -91,9 +87,9 @@ class RenewalsController extends Controller
      * Open the approval request for a renewal decision, snapshotting the flow's
      * offices so the trail stays immutable even if the flow is edited later.
      */
-    private function openRenewalRequest(Subscription $subscription, Renewal $renewal, ApprovalFlow $flow, User $user, ?string $receivedByName = null): ApprovalRequest
+    private function openRenewalRequest(Subscription $subscription, Renewal $renewal, ApprovalFlow $flow, User $user): ApprovalRequest
     {
-        $approvalRequest = ApprovalChain::start($subscription, $flow, ApprovalRequest::TYPE_RENEWAL, $renewal, $receivedByName);
+        $approvalRequest = ApprovalChain::start($subscription, $flow, ApprovalRequest::TYPE_RENEWAL, $renewal);
         $approvalRequest->load('currentOffice');
 
         AuditTrail::record(
@@ -110,7 +106,6 @@ class RenewalsController extends Controller
                 'cost' => $renewal->new_cost,
                 'approval_flow' => $flow->name,
                 'current_office' => $approvalRequest->currentOffice?->name,
-                'received_by' => $receivedByName,
             ],
             description: 'Submitted renewal for "'.$subscription->name.'" for approval via flow "'.$flow->name.'"',
         );

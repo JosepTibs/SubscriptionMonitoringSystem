@@ -7,7 +7,7 @@ import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import AuthLayout from '@/layouts/auth-layout';
+import AuthLayout from '@/layouts/auth-image-layout';
 
 interface RegisterForm {
     [key: string]: string;
@@ -40,16 +40,13 @@ export default function Register() {
         });
     };
 
-    const inputClasses =
-        'border-auth-surface bg-auth-surface text-auth-foreground placeholder:text-auth-muted focus:border-auth-accent focus:ring-auth-accent focus:ring-offset-0';
-
     return (
         <AuthLayout title="Create an account" description="Enter your details below to create your account">
             <Head title="Register" />
             <form className="mt-2 flex flex-col gap-4" onSubmit={submit}>
                 <div className="grid gap-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="username" className="text-auth-foreground">
+                        <Label htmlFor="username">
                             Username
                         </Label>
                         <Input
@@ -63,14 +60,13 @@ export default function Register() {
                             onChange={(e) => setData('username', e.target.value)}
                             disabled={processing}
                             placeholder="Username"
-                            className={inputClasses}
                         />
                         <InputError message={errors.username} className="mt-2" />
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="flex flex-col gap-1.5">
-                            <Label htmlFor="fname" className="text-auth-foreground">
+                            <Label htmlFor="fname">
                                 First Name
                             </Label>
                             <Input
@@ -83,13 +79,12 @@ export default function Register() {
                                 onChange={(e) => setData('fname', e.target.value)}
                                 disabled={processing}
                                 placeholder="John"
-                                className={inputClasses}
                             />
                             <InputError message={errors.fname} />
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <Label htmlFor="mname" className="text-auth-foreground">
+                            <Label htmlFor="mname">
                                 Middle Name
                             </Label>
                             <Input
@@ -102,13 +97,12 @@ export default function Register() {
                                 onChange={(e) => setData('mname', e.target.value)}
                                 disabled={processing}
                                 placeholder="Dela"
-                                className={inputClasses}
                             />
                             <InputError message={errors.mname} />
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <Label htmlFor="lname" className="text-auth-foreground">
+                            <Label htmlFor="lname">
                                 Last Name
                             </Label>
                             <Input
@@ -121,13 +115,12 @@ export default function Register() {
                                 onChange={(e) => setData('lname', e.target.value)}
                                 disabled={processing}
                                 placeholder="Cruz"
-                                className={inputClasses}
                             />
                             <InputError message={errors.lname} />
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <Label htmlFor="sname" className="text-auth-foreground">
+                            <Label htmlFor="sname">
                                 Suffix Name
                             </Label>
                             <Input
@@ -140,14 +133,13 @@ export default function Register() {
                                 onChange={(e) => setData('sname', e.target.value)}
                                 disabled={processing}
                                 placeholder="Jr."
-                                className={inputClasses}
                             />
                             <InputError message={errors.sname} />
                         </div>
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="email" className="text-auth-foreground">
+                        <Label htmlFor="email">
                             Email address
                         </Label>
                         <Input
@@ -160,13 +152,12 @@ export default function Register() {
                             onChange={(e) => setData('email', e.target.value)}
                             disabled={processing}
                             placeholder="email@example.com"
-                            className={inputClasses}
                         />
                         <InputError message={errors.email} />
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-2">
-                            <Label htmlFor="password" className="text-auth-foreground">
+                            <Label htmlFor="password">
                                 Password
                             </Label>
                             <Input
@@ -179,13 +170,12 @@ export default function Register() {
                                 onChange={(e) => setData('password', e.target.value)}
                                 disabled={processing}
                                 placeholder="Password"
-                                className={inputClasses}
                             />
                             <InputError message={errors.password} />
                         </div>
 
                         <div className="grid gap-2">
-                            <Label htmlFor="password_confirmation" className="text-auth-foreground">
+                            <Label htmlFor="password_confirmation">
                                 Confirm password
                             </Label>
                             <Input
@@ -198,7 +188,6 @@ export default function Register() {
                                 onChange={(e) => setData('password_confirmation', e.target.value)}
                                 disabled={processing}
                                 placeholder="Confirm password"
-                                className={inputClasses}
                             />
                             <InputError message={errors.password_confirmation} />
                         </div>
@@ -210,9 +199,9 @@ export default function Register() {
                     </Button>
                 </div>
 
-                <div className="text-auth-muted text-center text-sm">
+                <div className="text-muted-foreground text-center text-sm">
                     Already have an account?{' '}
-                    <TextLink href={route('login')} tabIndex={7} className="text-auth-accent">
+                    <TextLink href={route('login')} tabIndex={7} className="text-primary">
                         Log in
                     </TextLink>
                 </div>

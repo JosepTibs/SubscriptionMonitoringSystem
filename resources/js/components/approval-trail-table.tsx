@@ -3,6 +3,7 @@ import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatDate, formatPeso } from '@/lib/format';
@@ -10,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { type ApprovalRequest, type ApprovalRequestStep, type SharedData } from '@/types';
 import { router, usePage } from '@inertiajs/react';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
-import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 
 const statusLabels: Record<string, string> = {
     in_progress: 'In progress',
@@ -28,8 +29,22 @@ const statusVariants: Record<TrailStepState, 'default' | 'secondary' | 'destruct
 
 const cellInput = 'h-8 text-sm';
 
-/** The transition the step holding the papers is waiting on. */
-type FillAction = 'approve' | 'forward';
+/** The runtime writes names through these actions; each stamps its own date. */
+type FillAction = 'receive' | 'approve' | 'forward';
+
+/**
+ * The three names a step records, in the order the runtime accepts them.
+ *
+ * `forward` refuses to release papers that have not been approved, so the
+ * sender can only ever be recorded after the signatory. Keeping the sequence
+ * in one place lets the hint, the guard dialog and the save-all chain agree on
+ * it instead of restating the rule.
+ */
+const fillOrder = [
+    { field: 'received_by_name', action: 'receive' as FillAction, label: 'Received by', placeholder: 'Contact who received here' },
+    { field: 'approved_by_name', action: 'approve' as FillAction, label: 'Approved by', placeholder: 'Office head who approved' },
+    { field: 'sent_by_name', action: 'forward' as FillAction, label: 'Sent by', placeholder: 'Person releasing the papers' },
+] as const;
 
 type StringMap = Record<string, string>;
 
@@ -86,7 +101,6 @@ const editDraftFrom = (step: ApprovalRequestStep): StringMap => ({
     acted_at: dateInputValue(step.acted_at),
     forwarded_by_name: step.forwarded_by_name ?? '',
     forwarded_at: dateInputValue(step.forwarded_at),
-    remarks: step.remarks ?? '',
 });
 
 interface ValueCellProps {
@@ -112,14 +126,65 @@ function ValueCell({ field, draft, setDraft, type = 'text', error }: ValueCellPr
     );
 }
 
+interface NameFieldProps {
+    field: string;
+    label: string;
+    placeholder: string;
+    draft: StringMap;
+    setDraft: Dispatch<SetStateAction<StringMap>>;
+    error?: string;
+    disabled?: boolean;
+    onBlur: () => void;
+    onEnter: () => void;
+}
+
 /**
- * A request's trail, editable in place.
+ * One typed signatory on the row the papers are sitting at.
  *
- * The step holding the papers shows inputs for the transition it is waiting
- * on: completing the typed names commits the action on its own. Every date is
- * stamped by the server at that moment — never typed here. Recorded rows stay
- * read-only unless the account may edit the trail (see the step controller,
- * the only path allowed to change a recorded value or erase a row).
+ * Leaving the field records that one name, so a single name can be captured
+ * without committing the whole row; the check at the end of the row is what
+ * records the step in order. A blur is only sent once every earlier name in the
+ * chain is filled, so the runtime is never handed a signatory for papers that
+ * nobody has signed for receiving, or a release for an unapproved step.
+ */
+function NameField({ field, label, placeholder, draft, setDraft, error, disabled = false, onBlur, onEnter }: NameFieldProps) {
+    return (
+        <>
+            <Input
+                aria-label={label}
+                className={cellInput}
+                value={draft[field] ?? ''}
+                placeholder={placeholder}
+                disabled={disabled}
+                onChange={(event) => setDraft((previous) => ({ ...previous, [field]: event.target.value }))}
+                onBlur={onBlur}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                        // The row is recorded in full rather than on one field,
+                        // so Enter cannot leave a half-saved step behind.
+                        event.preventDefault();
+                        onEnter();
+                    }
+                }}
+            />
+            <InputError message={error} />
+        </>
+    );
+}
+
+/**
+ * A request's trail, typed in as the papers travel.
+ *
+ * Every name is typed by ICT - never derived from the acting account (scope.md
+ * §1) - and the date beside it is stamped by the server the moment the name is
+ * first saved (see ApprovalChain::markReceived / markApproved / markReleased),
+ * so the table keeps no dates of its own.
+ *
+ * Only the row the papers have reached offers inputs: it is the first row that
+ * has not been released, which is exactly the rule the runtime enforces. Rows
+ * behind it are history and stay read-only unless the account may correct the
+ * trail (see the step controller, the only path allowed to change a recorded
+ * value or erase a row).
  */
 export default function ApprovalTrailTable({ request }: { request: ApprovalRequest }) {
     const { auth } = usePage<SharedData>().props;
@@ -129,92 +194,187 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
     const currentIndex = steps.findIndex((step) => trailStepState(step, request) === 'current');
     const currentStep = currentIndex >= 0 ? steps[currentIndex] : null;
 
-    // The runtime skips deactivated offices, so the row due to receive the
-    // papers is the next one whose office is still active.
-    const nextStep = currentStep === null ? null : (steps.slice(currentIndex + 1).find((step) => step.office?.is_active ?? true) ?? null);
+    // The row the papers have reached: every office ahead of it must already
+    // have released them, and deactivated offices are skipped the same way the
+    // runtime skips them. Filling a name in any other row would date a hand-off
+    // before it happened, so no other row offers inputs.
+    const editableStep =
+        request.status === 'in_progress' ? (steps.find((step) => step.status !== 'forwarded' && (step.office?.is_active ?? true)) ?? null) : null;
+    const editableIndex = editableStep === null ? -1 : steps.findIndex((step) => step.id === editableStep.id);
 
-    // Which transition the current step is waiting on, if any.
-    const fillAction: FillAction | null =
-        request.status !== 'in_progress' || currentStep === null
-            ? null
-            : currentStep.status === 'approved'
-              ? 'forward'
-              : ['pending', 'received', 'returned'].includes(currentStep.status)
-                ? 'approve'
-                : null;
+    // The office due to receive the papers next, if any: the releasing row only
+    // records who sent them, and the receiver is typed in when they arrive.
+    const destination = editableIndex < 0 ? null : (steps.slice(editableIndex + 1).find((step) => step.office?.is_active ?? true) ?? null);
 
-    const [draft, setDraft] = useState({ approved_by_name: '', sent_by_name: '', received_by_name: '', remarks: '' });
+    // The last office has nowhere to release the papers to, so "Sent by" and
+    // "Date sent" are not merely empty there - they describe an event that will
+    // never happen, and offering them invited a release the runtime refuses. The
+    // column pair is dropped from the head and the body together so the two
+    // never drift out of alignment, including inside the correction editor.
+    const hasDestination = destination !== null;
+
+    /** What the step already holds for a fill field, so a gap is a real one. */
+    const storedNameFor = (field: string): string =>
+        field === 'sent_by_name' ? (editableStep?.forwarded_by_name ?? '') : ((editableStep?.[field as keyof ApprovalRequestStep] as string | null) ?? '');
+
     const [submitting, setSubmitting] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<StringMap>({});
-    // An inline form has no submit button, so the commit fires from a blur;
-    // this stops the same values being sent twice.
-    const lastAttempt = useRef('');
 
-    const setDraftValue = (key: keyof typeof draft) => (value: string) => {
-        setDraft((previous) => ({ ...previous, [key]: value }));
-    };
+    // The editable row's names are held as a draft and only written when a
+    // check button is pressed, so nothing reaches the database just because the
+    // pointer moved away from a field.
+    const [draft, setDraft] = useState<StringMap>({});
 
-    const post = (action: string, payload: StringMap) => {
+    // Guards a save that was pressed before the row was filled in.
+    const [guardOpen, setGuardOpen] = useState(false);
+    const [guardMessage, setGuardMessage] = useState('');
+
+    // A save re-renders the row with the stored values, so the draft is reseeded
+    // from the record whenever the editable row changes - a released step hands
+    // the inputs to the next office, and a saved name must not linger as an
+    // unsaved edit on the row that replaces it. The seed is compared as a string
+    // because a fresh object every render would reset the draft on each
+    // keystroke and make the inputs unwritable.
+    const draftSeedKey = editableStep === null ? '' : JSON.stringify(editDraftFrom(editableStep));
+
+    useEffect(() => {
+        setDraft(draftSeedKey === '' ? {} : JSON.parse(draftSeedKey));
+    }, [draftSeedKey]);
+
+    /**
+     * Save one typed name on blur, refusing anything the runtime would reject.
+     *
+     * The names form a chain: a step is only meaningful once the papers have
+     * been received, and only releasable once it has been signed off. Blurring a
+     * later field while an earlier one is still blank would otherwise reach the
+     * server as a refusal the table cannot display - the 422 carries no field
+     * key, so it would surface as silence. The gap is reported instead, naming
+     * what has to be filled first.
+     */
+    const saveField = (action: FillAction, field: string, label: string) => {
         if (submitting) {
             return;
         }
 
+        const value = (draft[field] ?? '').trim();
+
+        if (value === '') {
+            return;
+        }
+
+        // Everything this field depends on has to be filled before it is worth
+        // sending, so the refused case is caught here rather than on the server.
+        const blocking = fillOrder.slice(0, fillOrder.findIndex((entry) => entry.field === field)).find(
+            (entry) => (draft[entry.field] ?? '').trim() === '' && storedNameFor(entry.field) === '',
+        );
+
+        if (blocking !== undefined) {
+            setGuardMessage(`"${blocking.label}" is still empty. Record it before "${label}".`);
+            setGuardOpen(true);
+
+            return;
+        }
+
+        save(action, field, value);
+    };
+
+    /**
+     * Record the whole row from the check at the end of it.
+     *
+     * The three names are three actions with three audit rows, so they are sent
+     * in the order the runtime accepts rather than together, and the chain stops
+     * at the first refusal so a release never runs on top of a signatory that
+     * did not save. A row with nothing to release stops after the approval,
+     * which on the last office is what completes the chain.
+     */
+    const saveRow = () => {
+        if (submitting) {
+            return;
+        }
+
+        const applicable = fillOrder.slice(0, hasDestination ? fillOrder.length : 2);
+        const missing = applicable.find((entry) => (draft[entry.field] ?? '').trim() === '');
+
+        if (missing !== undefined) {
+            setGuardMessage(`"${missing.label}" is still empty. Fill in the names in order before recording this step.`);
+            setGuardOpen(true);
+
+            return;
+        }
+
+        setFieldErrors({});
         setSubmitting(true);
-        router.patch(route('approval-requests.' + action, request.id), payload, {
+
+        applicable
+            .reduce((chain, entry) => chain.then(() => sendField(entry.action, entry.field, (draft[entry.field] ?? '').trim())), Promise.resolve())
+            .then(() => setSubmitting(false))
+            .catch(() => setSubmitting(false));
+    };
+
+    /**
+     * Send one typed name. The runtime stamps the matching date on the first
+     * fill, so nothing here carries a date, and an empty field is not a save.
+     *
+     * Saving is explicit: the value only reaches the database when the check
+     * button is pressed, so nothing is written as a side effect of moving the
+     * pointer away from the field.
+     */
+    const save = (action: FillAction, field: string, typed: string) => {
+        if (submitting) {
+            return;
+        }
+
+        const value = typed.trim();
+
+        if (value === '') {
+            return;
+        }
+
+        setFieldErrors({});
+        setSubmitting(true);
+        router.patch(route('approval-requests.' + action, request.id), { [field]: value }, {
             preserveScroll: true,
             onError: (errors) => setFieldErrors(errors),
             onFinish: () => setSubmitting(false),
         });
     };
 
+    /**
+     * One link in the save chain. Inertia's patch is promise-shaped, so the
+     * next name waits for this one to land and the chain can halt on a refusal.
+     */
+    const sendField = (action: FillAction, field: string, value: string) =>
+        new Promise<void>((resolve, reject) => {
+            router.patch(
+                route('approval-requests.' + action, request.id),
+                { [field]: value },
+                {
+                    preserveScroll: true,
+                    onError: (errors) => {
+                        setFieldErrors(errors);
+                        reject(new Error(field));
+                    },
+                    onSuccess: () => resolve(),
+                },
+            );
+        });
+
     const rows = trailRows(request);
+
     const fillHint =
-        fillAction === null
-            ? 'Every row records who received and who released the papers at that office.'
-            : fillAction === 'approve'
-              ? 'Type who approved at the highlighted office — the approval is written as soon as the name is filled in.'
-              : nextStep === null
-                ? 'Type who released the papers — the chain completes as soon as the name is filled in.'
-                : 'Type who released the papers here and who receives them at the next office — the hand-off is written as soon as both are filled in.';
+        editableStep === null
+            ? 'Every row records who received, who approved and who released the papers at that office.'
+            : destination === null
+              ? 'Type who received and who approved at the highlighted office - each date is stamped as soon as the name is saved, and the final approval completes the chain.'
+              : 'Type who received, who approved and who released the papers at the highlighted office - each date is stamped as soon as the name is saved, and naming the sender hands the papers to the next office.';
 
-    /** Commits the pending transition once the names it needs are all typed. */
-    const commitFill = () => {
-        if (fillAction === null) {
-            return;
-        }
-
-        // Completeness is checked against the typed draft, not the payload, so
-        // TypeScript never has to read keys off a union of differently shaped objects.
-        const needsReceiver = nextStep !== null;
-        const complete =
-            fillAction === 'approve'
-                ? draft.approved_by_name.trim() !== ''
-                : draft.sent_by_name.trim() !== '' && (!needsReceiver || draft.received_by_name.trim() !== '');
-
-        if (!complete) {
-            return;
-        }
-
-        const payload: StringMap =
-            fillAction === 'approve'
-                ? { approved_by_name: draft.approved_by_name, remarks: draft.remarks }
-                : {
-                      sent_by_name: draft.sent_by_name,
-                      received_by_name: needsReceiver ? draft.received_by_name : '',
-                      remarks: draft.remarks,
-                  };
-
-        const signature = JSON.stringify(payload);
-        if (lastAttempt.current === signature) {
-            return;
-        }
-        lastAttempt.current = signature;
-        post(fillAction, payload);
-    };
-
-    const sendBack = () => {
-        post('return', { approved_by_name: draft.approved_by_name, remarks: draft.remarks });
-    };
+    // The order the runtime accepts, spelled out where the inputs are rather
+    // than only in the refusal dialog: the sender cannot be recorded before the
+    // step is approved, and the table would otherwise invite that attempt.
+    const orderHint =
+        destination === null
+            ? 'Record in order: Received by → Approved by. The final approval completes the chain.'
+            : 'Record in order: Received by → Approved by → Sent by. Approving signs off the step; the sender can only be recorded afterwards.';
 
     // Administrative corrections: one recorded row unlocked at a time.
     const [editingRowId, setEditingRowId] = useState<number | null>(null);
@@ -260,6 +420,7 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
             </CardHeader>
             <CardContent>
                 <p className="text-muted-foreground mb-2 text-xs">{fillHint}</p>
+                {editableStep !== null && <p className="text-muted-foreground mb-2 text-xs font-medium">{orderHint}</p>}
                 <div className="overflow-x-auto">
                     <Table className="min-w-250">
                         <TableHeader>
@@ -270,27 +431,22 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                 <TableHead>Date received</TableHead>
                                 <TableHead>Approved by</TableHead>
                                 <TableHead>Date approved</TableHead>
-                                <TableHead>Sent by</TableHead>
-                                <TableHead>Date sent</TableHead>
+                                {hasDestination && <TableHead>Sent by</TableHead>}
+                                {hasDestination && <TableHead>Date sent</TableHead>}
                                 <TableHead>Status</TableHead>
-                                <TableHead>Remarks</TableHead>
                                 {canEditTrail && <TableHead className="w-20 text-right">Trail</TableHead>}
+                                <TableHead className="w-12" />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {rows.map((row) => {
-                                const isCurrent = currentStep !== null && row.step.id === currentStep.id;
-                                const isReceiver = nextStep !== null && row.step.id === nextStep.id;
+                                const isEditable = editableStep !== null && row.step.id === editableStep.id;
                                 const isEditing = editingRowId === row.step.id;
-                                const fillReceived = isReceiver && fillAction === 'forward';
-                                const fillApproved = isCurrent && fillAction === 'approve';
-                                const fillSent = isCurrent && fillAction === 'forward';
-                                const fillRemarks = isCurrent && fillAction !== null;
 
                                 return (
                                     <TableRow
                                         key={row.step.id}
-                                        className={cn(row.state === 'todo' && 'opacity-60', (isCurrent || fillReceived) && 'bg-muted/40')}
+                                        className={cn(row.state === 'todo' && 'opacity-60', isEditable && 'bg-muted/40')}
                                     >
                                         <TableCell className="font-medium">{row.step.step_order}</TableCell>
                                         <TableCell>
@@ -306,17 +462,18 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                         <TableCell>
                                             {isEditing ? (
                                                 <ValueCell field="received_by_name" draft={editDraft} setDraft={setEditDraft} error={fieldErrors.received_by_name} />
-                                            ) : fillReceived ? (
-                                                <>
-                                                    <Input
-                                                        className={cellInput}
-                                                        value={draft.received_by_name}
-                                                        placeholder="Contact receiving here"
-                                                        onChange={(event) => setDraftValue('received_by_name')(event.target.value)}
-                                                        onBlur={commitFill}
-                                                    />
-                                                    <InputError message={fieldErrors.received_by_name} />
-                                                </>
+                                            ) : isEditable ? (
+                                                <NameField
+                                                    field="received_by_name"
+                                                    label="Received by"
+                                                    placeholder="Contact who received here"
+                                                    draft={draft}
+                                                    setDraft={setDraft}
+                                                    error={fieldErrors.received_by_name}
+                                                    disabled={submitting}
+                                                    onBlur={() => saveField('receive', 'received_by_name', 'Received by')}
+                                                    onEnter={saveRow}
+                                                />
                                             ) : (
                                                 (row.receivedBy ?? '—')
                                             )}
@@ -333,17 +490,18 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                         <TableCell>
                                             {isEditing ? (
                                                 <ValueCell field="approved_by_name" draft={editDraft} setDraft={setEditDraft} error={fieldErrors.approved_by_name} />
-                                            ) : fillApproved ? (
-                                                <>
-                                                    <Input
-                                                        className={cellInput}
-                                                        value={draft.approved_by_name}
-                                                        placeholder="Office head who approved"
-                                                        onChange={(event) => setDraftValue('approved_by_name')(event.target.value)}
-                                                        onBlur={commitFill}
-                                                    />
-                                                    <InputError message={fieldErrors.approved_by_name} />
-                                                </>
+                                            ) : isEditable ? (
+                                                <NameField
+                                                    field="approved_by_name"
+                                                    label="Approved by"
+                                                    placeholder="Office head who approved"
+                                                    draft={draft}
+                                                    setDraft={setDraft}
+                                                    error={fieldErrors.approved_by_name}
+                                                    disabled={submitting}
+                                                    onBlur={() => saveField('approve', 'approved_by_name', 'Approved by')}
+                                                    onEnter={saveRow}
+                                                />
                                             ) : (
                                                 (row.approvedBy ?? '—')
                                             )}
@@ -358,31 +516,34 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {isEditing ? (
-                                                <ValueCell field="forwarded_by_name" draft={editDraft} setDraft={setEditDraft} error={fieldErrors.forwarded_by_name} />
-                                            ) : fillSent ? (
-                                                <>
-                                                    <Input
-                                                        className={cellInput}
-                                                        value={draft.sent_by_name}
+                                            {hasDestination &&
+                                                (isEditing ? (
+                                                    <ValueCell field="forwarded_by_name" draft={editDraft} setDraft={setEditDraft} error={fieldErrors.forwarded_by_name} />
+                                                ) : isEditable ? (
+                                                    <NameField
+                                                        field="sent_by_name"
+                                                        label="Sent by"
                                                         placeholder="Person releasing the papers"
-                                                        onChange={(event) => setDraftValue('sent_by_name')(event.target.value)}
-                                                        onBlur={commitFill}
+                                                        draft={draft}
+                                                        setDraft={setDraft}
+                                                        error={fieldErrors.sent_by_name}
+                                                        disabled={submitting}
+                                                        onBlur={() => saveField('forward', 'sent_by_name', 'Sent by')}
+                                                        onEnter={saveRow}
                                                     />
-                                                    <InputError message={fieldErrors.sent_by_name} />
-                                                </>
-                                            ) : (
-                                                (row.sentBy ?? '—')
-                                            )}
+                                                ) : (
+                                                    (row.sentBy ?? '—')
+                                                ))}
                                         </TableCell>
                                         <TableCell>
-                                            {isEditing ? (
-                                                <ValueCell field="forwarded_at" draft={editDraft} setDraft={setEditDraft} type="date" error={fieldErrors.forwarded_at} />
-                                            ) : row.sentAt ? (
-                                                formatDate(row.sentAt)
-                                            ) : (
-                                                '—'
-                                            )}
+                                            {hasDestination &&
+                                                (isEditing ? (
+                                                    <ValueCell field="forwarded_at" draft={editDraft} setDraft={setEditDraft} type="date" error={fieldErrors.forwarded_at} />
+                                                ) : row.sentAt ? (
+                                                    formatDate(row.sentAt)
+                                                ) : (
+                                                    '—'
+                                                ))}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col items-start gap-1">
@@ -394,29 +555,7 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                                 )}
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            {isEditing ? (
-                                                <ValueCell field="remarks" draft={editDraft} setDraft={setEditDraft} error={fieldErrors.remarks} />
-                                            ) : fillRemarks ? (
-                                                <>
-                                                    <Input
-                                                        className={cellInput}
-                                                        value={draft.remarks}
-                                                        placeholder="Notes recorded on the trail"
-                                                        onChange={(event) => setDraftValue('remarks')(event.target.value)}
-                                                        onBlur={commitFill}
-                                                    />
-                                                    <InputError message={fieldErrors.remarks} />
-                                                </>
-                                            ) : (
-                                                <span className="text-muted-foreground text-sm">{row.step.remarks ?? '—'}</span>
-                                            )}
-                                            {fillRemarks && draft.remarks !== '' && (
-                                                <Button type="button" variant="ghost" size="sm" className="mt-1" onClick={sendBack}>
-                                                    Record a return instead
-                                                </Button>
-                                            )}
-                                        </TableCell>
+
                                         {canEditTrail && (
                                             <TableCell>
                                                 <div className="flex items-center justify-end gap-1">
@@ -434,7 +573,7 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                                             <Button type="button" variant="ghost" size="sm" onClick={() => startEditing(row.step)} title="Correct this row">
                                                                 <Pencil className="h-4 w-4" />
                                                             </Button>
-                                                            {row.step.status === 'pending' && !isCurrent && (
+                                                            {row.step.status === 'pending' && !isEditable && (
                                                                 <Button type="button" variant="ghost" size="sm" onClick={() => eraseRow(row.step)} title="Erase this row">
                                                                     <Trash2 className="h-4 w-4" />
                                                                 </Button>
@@ -444,20 +583,74 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
                                                 </div>
                                             </TableCell>
                                         )}
+
+                                        {/*
+                                            The row's own check sits last, beside the
+                                            trail controls, and records the step in
+                                            the order the runtime accepts. It is a
+                                            column of its own rather than part of
+                                            the trail cluster because the pencil
+                                            is admin-only, and every ICT account
+                                            has to be able to record a step.
+                                        */}
+                                        <TableCell>
+                                            {isEditable && !isEditing && (
+                                                <div className="flex justify-end">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        title={hasDestination ? 'Save this step and release the papers' : 'Save this step and complete the chain'}
+                                                        onClick={saveRow}
+                                                        disabled={submitting}
+                                                    >
+                                                        <Check className="size-4" />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </TableCell>
                                     </TableRow>
                                 );
                             })}
                         </TableBody>
                     </Table>
                 </div>
+                {editableStep !== null && (
+                    <p className="text-muted-foreground mt-3 text-xs">
+                        {hasDestination
+                            ? `Leaving a field records that one name. The check at the end of the row records the whole step and hands the papers to ${
+                                  destination.office?.name ?? 'the next office'
+                              }.`
+                            : 'Leaving a field records that one name. The check at the end of the row records the step, and the final approval completes the chain.'}
+                    </p>
+                )}
                 {request.type === 'renewal' && request.renewal && (
                     <p className="text-muted-foreground mt-4 text-xs">
                         Proposed renewal: <strong>{formatDate(request.renewal.new_renewal_date)}</strong> · <strong>{formatPeso(request.renewal.new_cost)}</strong>
                         {request.renewal.remarks ? ` — ${request.renewal.remarks}` : ''}
                     </p>
                 )}
-                {request.status === 'returned' && request.remarks && <p className="text-destructive mt-4 text-xs">Returned: {request.remarks}</p>}
             </CardContent>
+
+            {/*
+                Refuses a save pressed before the row is filled in. The runtime
+                answers an out-of-order release with a 422 that carries no field
+                key, so it used to surface as nothing at all; naming the field
+                here turns that dead end into a readable reason.
+            */}
+            <Dialog open={guardOpen} onOpenChange={setGuardOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Fill the required field first</DialogTitle>
+                        <DialogDescription>{guardMessage}</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" onClick={() => setGuardOpen(false)}>
+                            Got it
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Card>
     );
 }

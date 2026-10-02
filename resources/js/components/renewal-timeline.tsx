@@ -81,14 +81,13 @@ export default function RenewalTimeline({ request }: { request?: ApprovalRequest
                                             </Badge>
                                             <span className="text-muted-foreground text-[11px]">{nameLine}</span>
                                             <span className="text-muted-foreground text-[11px]">
-                                                {step.acted_at ? formatDate(step.acted_at) : (step.remarks ?? '—')}
+                                                {step.acted_at ? formatDate(step.acted_at) : '—'}
                                             </span>
                                             {state === 'current' && step.received_at && (
                                                 <span className="text-muted-foreground text-[11px]">
                                                     {`At this office ${Math.max(0, Math.floor((Date.now() - new Date(step.received_at).getTime()) / 86_400_000))} day(s)`}
                                                 </span>
                                             )}
-                                            {step.acted_at && step.remarks && <span className="line-clamp-2 text-[11px]">{step.remarks}</span>}
                                         </div>
                                         {i < steps.length - 1 && (
                                             <div
@@ -113,7 +112,6 @@ export default function RenewalTimeline({ request }: { request?: ApprovalRequest
                     </p>
                 )}
 
-                {request.status === 'returned' && request.remarks && <p className="text-destructive mt-4 text-xs">Returned: {request.remarks}</p>}
             </CardContent>
         </Card>
     );

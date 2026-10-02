@@ -39,22 +39,22 @@ class ApprovalChain
      *
      * The pointer starts at the first snapshot step whose office is still
      * active, falling back to the first step so a fully deactivated flow still
-     * has somewhere to sit. When $receivedByName is given (the contact ICT
-     * typed at submission) the first step is recorded as received.
+     * has somewhere to sit. Every row starts pending and empty: the names at
+     * each office, and the dates beside them, are typed as the papers travel
+     * (see markReceived, markApproved and markReleased), never at submission.
      */
     public static function start(
         Subscription $subscription,
         ApprovalFlow $flow,
         string $type,
         ?Renewal $renewal = null,
-        ?string $receivedByName = null,
     ): ApprovalRequest {
         $flow->load('steps.office');
 
         $steps = $flow->steps->sortBy('step_order')->values();
         $firstStep = $steps->first(fn (ApprovalFlowStep $step): bool => (bool) $step->office?->is_active) ?? $steps->first();
 
-        return DB::transaction(function () use ($subscription, $flow, $type, $renewal, $steps, $firstStep, $receivedByName): ApprovalRequest {
+        return DB::transaction(function () use ($subscription, $flow, $type, $renewal, $steps, $firstStep): ApprovalRequest {
             $request = ApprovalRequest::create([
                 'subscription_id' => $subscription->id,
                 'type' => $type,
@@ -65,31 +65,62 @@ class ApprovalChain
             ]);
 
             foreach ($steps as $index => $step) {
-                // The papers are already with the first office once ICT submits
-                // them, so the step the pointer lands on starts as received
-                // today, with the contact ICT typed in when one was given
-                // (scope.md §1: never the acting account). Later steps stay
-                // pending until forward() hands them over.
-                //
-                // The pointer can land past step 1 when the flow's first office
-                // is deactivated, so the receive stamp follows $firstStep
-                // rather than the snapshot's first row.
-                $isReceivingStep = $firstStep !== null && $step->id === $firstStep->id;
-
                 ApprovalRequestStep::create([
                     'approval_request_id' => $request->id,
                     'office_id' => $step->office_id,
                     'step_order' => $index + 1,
-                    'status' => $isReceivingStep
-                        ? ApprovalRequestStep::STATUS_RECEIVED
-                        : ApprovalRequestStep::STATUS_PENDING,
-                    'received_by_name' => $isReceivingStep ? $receivedByName : null,
-                    'received_at' => $isReceivingStep ? now() : null,
+                    'status' => ApprovalRequestStep::STATUS_PENDING,
                 ]);
             }
 
             return $request;
         });
+    }
+
+    /**
+     * Record the contact who received the papers at a step.
+     *
+     * The date received is stamped the first time a receiver is typed and is
+     * never moved by a later save: rewriting a recorded date stays the job of
+     * the administrative trail edit (see ApprovalRequestStepController).
+     */
+    public static function markReceived(ApprovalRequestStep $step, string $receivedByName): void
+    {
+        $step->update([
+            'received_by_name' => $receivedByName,
+            'received_at' => $step->received_at ?? now(),
+            'status' => $step->status === ApprovalRequestStep::STATUS_PENDING
+                ? ApprovalRequestStep::STATUS_RECEIVED
+                : $step->status,
+        ]);
+    }
+
+    /**
+     * Record the person who approved at a step, stamping the approval date the
+     * first time the name is typed.
+     */
+    public static function markApproved(ApprovalRequestStep $step, string $approvedByName, User $actor): void
+    {
+        $step->update([
+            'approved_by_name' => $approvedByName,
+            'acted_by' => $actor->id,
+            'acted_at' => $step->acted_at ?? now(),
+            'status' => ApprovalRequestStep::STATUS_APPROVED,
+        ]);
+    }
+
+    /**
+     * Record the person releasing the papers from a step, stamping the release
+     * date the first time the name is typed. A release without a named sender
+     * still records the moment the papers left.
+     */
+    public static function markReleased(ApprovalRequestStep $step, ?string $sentByName): void
+    {
+        $step->update([
+            'forwarded_by_name' => $sentByName === null || $sentByName === '' ? null : $sentByName,
+            'forwarded_at' => $step->forwarded_at ?? now(),
+            'status' => ApprovalRequestStep::STATUS_FORWARDED,
+        ]);
     }
 
     /**

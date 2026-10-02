@@ -60,7 +60,6 @@ it('records an approval without moving the pointer and audits it', function () {
 
     $this->actingAs($user)
         ->patch(route('approval-requests.approve', $request), [
-            'remarks' => 'Specs verified',
             'approved_by_name' => 'Budget Head',
         ])
         ->assertRedirect(route('subscriptions.show', $subscription));
@@ -69,8 +68,7 @@ it('records an approval without moving the pointer and audits it', function () {
     expect($step->status)->toBe(ApprovalRequestStep::STATUS_APPROVED)
         ->and($step->acted_by)->toBe($user->id)
         ->and($step->approved_by_name)->toBe('Budget Head')
-        ->and($step->acted_at)->not->toBeNull()
-        ->and($step->remarks)->toBe('Specs verified');
+        ->and($step->acted_at)->not->toBeNull();
 
     expect($request->refresh()->current_office_id)->toBe($offices[0]->id)
         ->and($request->status)->toBe(ApprovalRequest::STATUS_IN_PROGRESS)
@@ -107,7 +105,11 @@ it('renames the step name column and adds the hand-off columns', function () {
         ->and(Schema::hasColumn('approval_request_steps', 'received_by_name'))->toBeTrue()
         ->and(Schema::hasColumn('approval_request_steps', 'received_at'))->toBeTrue()
         ->and(Schema::hasColumn('approval_request_steps', 'forwarded_by_name'))->toBeTrue()
-        ->and(Schema::hasColumn('approval_request_steps', 'forwarded_at'))->toBeTrue();
+        ->and(Schema::hasColumn('approval_request_steps', 'forwarded_at'))->toBeTrue()
+        // Free-text notes were dropped from the approval domain: the trail is
+        // the typed names plus the dates stamped beside them.
+        ->and(Schema::hasColumn('approval_request_steps', 'remarks'))->toBeFalse()
+        ->and(Schema::hasColumn('approval_requests', 'remarks'))->toBeFalse();
 });
 
 it('records who released the papers and when on forward', function () {
@@ -120,17 +122,16 @@ it('records who released the papers and when on forward', function () {
         ->assertRedirect();
 
     $this->patch(route('approval-requests.forward', $request), [
-        'received_by_name' => 'Accounting Clerk',
         'sent_by_name' => 'Budget Officer',
     ])->assertRedirect(route('subscriptions.show', $subscription));
 
     $released = chainStep($request, 1);
 
+    // Signing off and releasing are separate events, each with its own person
+    // and moment.
     expect($released->status)->toBe(ApprovalRequestStep::STATUS_FORWARDED)
         ->and($released->forwarded_by_name)->toBe('Budget Officer')
         ->and($released->forwarded_at)->not->toBeNull()
-        // Signing off and releasing are separate events, each with its own
-        // person and moment.
         ->and($released->approved_by_name)->toBe('Budget Head')
         ->and($released->acted_at)->not->toBeNull();
 });
@@ -144,9 +145,8 @@ it('still forwards when the releaser is not named', function () {
         ->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])
         ->assertRedirect();
 
-    $this->patch(route('approval-requests.forward', $request), [
-        'received_by_name' => 'Accounting Clerk',
-    ])->assertRedirect(route('subscriptions.show', $subscription));
+    $this->patch(route('approval-requests.forward', $request))
+        ->assertRedirect(route('subscriptions.show', $subscription));
 
     $released = chainStep($request, 1);
 
@@ -170,7 +170,7 @@ it('refuses to forward a step that has not been approved yet', function () {
         ->and($request->refresh()->current_office_id)->toBe($offices[0]->id);
 });
 
-it('records who received the papers at the destination when forwarding', function () {
+it('moves the papers on without stamping the destination, which records its own receiver', function () {
     $user = chainReviewer();
     $flow = ApprovalFlow::factory()->create();
     [$subscription, $request, $offices] = chainSubscription($flow);
@@ -180,14 +180,15 @@ it('records who received the papers at the destination when forwarding', functio
         ->assertRedirect();
 
     $this->patch(route('approval-requests.forward', $request), [
-        'remarks' => 'Sending up',
-        'received_by_name' => 'Accounting Clerk',
+        'sent_by_name' => 'Budget Officer',
     ])->assertRedirect(route('subscriptions.show', $subscription));
 
     expect(chainStep($request, 1)->status)->toBe(ApprovalRequestStep::STATUS_FORWARDED)
-        ->and(chainStep($request, 2)->status)->toBe(ApprovalRequestStep::STATUS_RECEIVED)
-        ->and(chainStep($request, 2)->received_by_name)->toBe('Accounting Clerk')
-        ->and(chainStep($request, 2)->received_at)->not->toBeNull()
+        // Nothing is stamped ahead of the hand-off: the receiving office's own
+        // contact is typed in when the papers arrive there.
+        ->and(chainStep($request, 2)->status)->toBe(ApprovalRequestStep::STATUS_PENDING)
+        ->and(chainStep($request, 2)->received_by_name)->toBeNull()
+        ->and(chainStep($request, 2)->received_at)->toBeNull()
         ->and(chainStep($request, 3)->status)->toBe(ApprovalRequestStep::STATUS_PENDING)
         ->and($request->refresh()->current_office_id)->toBe($offices[1]->id)
         ->and($request->status)->toBe(ApprovalRequest::STATUS_IN_PROGRESS);
@@ -195,9 +196,19 @@ it('records who received the papers at the destination when forwarding', functio
     expect(AuditLog::where('action', 'Approval Forwarded')
         ->where('auditable_id', $subscription->id)
         ->exists())->toBeTrue();
+
+    // The destination row now takes names, and recording its receiver stamps
+    // the date received there.
+    $this->patch(route('approval-requests.receive', $request), [
+        'received_by_name' => 'Accounting Clerk',
+    ])->assertRedirect();
+
+    expect(chainStep($request, 2)->status)->toBe(ApprovalRequestStep::STATUS_RECEIVED)
+        ->and(chainStep($request, 2)->received_by_name)->toBe('Accounting Clerk')
+        ->and(chainStep($request, 2)->received_at)->not->toBeNull();
 });
 
-it('does not ask for a receiver when the chain completes on forward', function () {
+it('completes the chain when the only office left ahead is deactivated', function () {
     $user = chainReviewer();
     $flow = ApprovalFlow::factory()->create();
     [$subscription, $request, $offices] = chainSubscription($flow, 3);
@@ -205,15 +216,13 @@ it('does not ask for a receiver when the chain completes on forward', function (
     $this->actingAs($user)->patch(route('approval-requests.approve', $request), [
         'approved_by_name' => 'Budget Head',
     ])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), [
-        'received_by_name' => 'Accounting Clerk',
-    ])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request))->assertRedirect();
     $this->patch(route('approval-requests.approve', $request), [
         'approved_by_name' => 'Accounting Head',
     ])->assertRedirect();
 
     // The only office still ahead is deactivated: no destination remains, so
-    // the completing forward must not demand a receiver.
+    // releasing the papers at the last effective office closes the chain.
     $offices[2]->update(['is_active' => false]);
 
     $this->patch(route('approval-requests.forward', $request))
@@ -223,18 +232,22 @@ it('does not ask for a receiver when the chain completes on forward', function (
     expect($request->refresh()->status)->toBe(ApprovalRequest::STATUS_COMPLETED);
 });
 
-it('refuses to forward without naming the receiving contact', function () {
+it('refuses to write to a row the papers have not reached yet', function () {
     $user = chainReviewer();
     $flow = ApprovalFlow::factory()->create();
     [$subscription, $request, $offices] = chainSubscription($flow);
 
-    $this->actingAs($user)->patch(route('approval-requests.approve', $request), [
-        'approved_by_name' => 'Budget Head',
-    ])->assertRedirect();
+    // A pointer that has drifted ahead of the papers (a manual correction
+    // elsewhere, say) must not let the runtime date a hand-off that never
+    // happened.
+    $request->update(['current_office_id' => $offices[1]->id]);
 
-    $this->patch(route('approval-requests.forward', $request))->assertSessionHasErrors('received_by_name');
+    $this->actingAs($user)
+        ->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Accounting Head'])
+        ->assertStatus(422);
 
-    expect($request->refresh()->current_office_id)->toBe($offices[0]->id);
+    expect(chainStep($request, 2)->status)->toBe(ApprovalRequestStep::STATUS_PENDING)
+        ->and(chainStep($request, 2)->approved_by_name)->toBeNull();
 });
 
 it('skips deactivated offices when forwarding and keeps their history intact', function () {
@@ -247,13 +260,11 @@ it('skips deactivated offices when forwarding and keeps their history intact', f
     $this->actingAs($user)->patch(route('approval-requests.approve', $request), [
         'approved_by_name' => 'Budget Head',
     ])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), [
-        'received_by_name' => 'Records Clerk',
-    ])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request))->assertRedirect();
 
     expect($request->refresh()->current_office_id)->toBe($offices[2]->id)
         ->and(chainStep($request, 2)->status)->toBe(ApprovalRequestStep::STATUS_PENDING)
-        ->and(chainStep($request, 3)->status)->toBe(ApprovalRequestStep::STATUS_RECEIVED);
+        ->and(chainStep($request, 3)->status)->toBe(ApprovalRequestStep::STATUS_PENDING);
 });
 
 it('completes a procurement chain when the final office approves', function () {
@@ -261,11 +272,11 @@ it('completes a procurement chain when the final office approves', function () {
     $flow = ApprovalFlow::factory()->create();
     [$subscription, $request, $offices] = chainSubscription($flow);
 
-    $this->actingAs($user)->patch(route('approval-requests.approve', $request), ['remarks' => 'Office 1 ok', 'approved_by_name' => 'Budget Head'])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), ['received_by_name' => 'Accounting Clerk'])->assertRedirect();
-    $this->patch(route('approval-requests.approve', $request), ['remarks' => 'Office 2 ok', 'approved_by_name' => 'Accounting Head'])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), ['received_by_name' => 'Director Secretary'])->assertRedirect();
-    $this->patch(route('approval-requests.approve', $request), ['remarks' => 'Final approval', 'approved_by_name' => 'Agency Head'])->assertRedirect();
+    $this->actingAs($user)->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request), ['sent_by_name' => 'Budget Officer'])->assertRedirect();
+    $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Accounting Head'])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request), ['sent_by_name' => 'Accounting Officer'])->assertRedirect();
+    $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Agency Head'])->assertRedirect();
 
     $request->refresh();
 
@@ -294,16 +305,14 @@ it('blocks forwarding the final step until that office has approved', function (
     $this->actingAs($user)->patch(route('approval-requests.approve', $request), [
         'approved_by_name' => 'Budget Head',
     ])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), [
-        'received_by_name' => 'Accounting Clerk',
-    ])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request))->assertRedirect();
 
     // Sitting at the final office without its approval: the pointer must not move.
     $this->patch(route('approval-requests.forward', $request))->assertStatus(422);
 
     expect($request->refresh()->status)->toBe(ApprovalRequest::STATUS_IN_PROGRESS)
         ->and($request->current_office_id)->toBe($offices[1]->id)
-        ->and(chainStep($request, 2)->status)->toBe(ApprovalRequestStep::STATUS_RECEIVED);
+        ->and(chainStep($request, 2)->status)->toBe(ApprovalRequestStep::STATUS_PENDING);
 });
 
 it('closes the chain instead of stranding a request when no active office is left ahead', function () {
@@ -312,7 +321,7 @@ it('closes the chain instead of stranding a request when no active office is lef
     [$subscription, $request, $offices] = chainSubscription($flow);
 
     $this->actingAs($user)->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), ['received_by_name' => 'Accounting Clerk'])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request), ['sent_by_name' => 'Budget Officer'])->assertRedirect();
     $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Accounting Head'])->assertRedirect();
 
     // The only office still ahead is deactivated mid-flight.
@@ -329,35 +338,28 @@ it('closes the chain instead of stranding a request when no active office is lef
         ->and(chainStep($request, 3)->status)->toBe(ApprovalRequestStep::STATUS_PENDING);
 });
 
-it('requires remarks to return a request and then stops the chain', function () {
+it('returns a request and then stops the chain', function () {
     $user = chainReviewer();
     $flow = ApprovalFlow::factory()->create();
     [$subscription, $request, $offices] = chainSubscription($flow);
 
+    // The office sending it back has to be named; nothing else travels with it.
     $this->actingAs($user)
         ->patch(route('approval-requests.return', $request))
-        ->assertSessionHasErrors('remarks');
-
-    expect($request->refresh()->status)->toBe(ApprovalRequest::STATUS_IN_PROGRESS);
-
-    $this->patch(route('approval-requests.return', $request), ['remarks' => 'Budget not approved'])
         ->assertSessionHasErrors('approved_by_name');
 
     expect($request->refresh()->status)->toBe(ApprovalRequest::STATUS_IN_PROGRESS);
 
     $this->patch(route('approval-requests.return', $request), [
-        'remarks' => 'Budget not approved',
         'approved_by_name' => 'Budget Head',
     ])->assertRedirect(route('subscriptions.show', $subscription));
 
     $request->refresh();
 
     expect($request->status)->toBe(ApprovalRequest::STATUS_RETURNED)
-        ->and($request->remarks)->toBe('Budget not approved')
         ->and($request->decided_by)->toBe($user->id)
         ->and(chainStep($request, 1)->status)->toBe(ApprovalRequestStep::STATUS_RETURNED)
-        ->and(chainStep($request, 1)->approved_by_name)->toBe('Budget Head')
-        ->and(chainStep($request, 1)->remarks)->toBe('Budget not approved');
+        ->and(chainStep($request, 1)->approved_by_name)->toBe('Budget Head');
 
     // A returned request can no longer travel.
     $this->patch(route('approval-requests.approve', $request))->assertStatus(403);
@@ -366,6 +368,39 @@ it('requires remarks to return a request and then stops the chain', function () 
     expect(AuditLog::where('action', 'Approval Returned')
         ->where('auditable_id', $subscription->id)
         ->exists())->toBeTrue();
+});
+
+it('stamps the date received when the receiver is first recorded', function () {
+    $user = chainReviewer();
+    $flow = ApprovalFlow::factory()->create();
+    [$subscription, $request] = chainSubscription($flow);
+
+    $this->actingAs($user)
+        ->patch(route('approval-requests.receive', $request), ['received_by_name' => 'Records Clerk'])
+        ->assertRedirect(route('subscriptions.show', $subscription));
+
+    $received = chainStep($request, 1);
+    $stamped = $received->received_at?->toDateTimeString();
+
+    expect($received->status)->toBe(ApprovalRequestStep::STATUS_RECEIVED)
+        ->and($received->received_by_name)->toBe('Records Clerk')
+        ->and($stamped)->not->toBeNull();
+
+    expect(AuditLog::where('action', 'Approval Received')
+        ->where('auditable_id', $subscription->id)
+        ->exists())->toBeTrue();
+
+    // Two days later a spelling correction is saved, but the recorded date
+    // stays where it was: only the first fill stamps it.
+    $this->travel(2)->days();
+
+    $this->patch(route('approval-requests.receive', $request), ['received_by_name' => 'Records Clerk Jr'])
+        ->assertRedirect();
+
+    $corrected = chainStep($request, 1);
+
+    expect($corrected->received_by_name)->toBe('Records Clerk Jr')
+        ->and($corrected->received_at?->toDateTimeString())->toBe($stamped);
 });
 
 it('forbids acting on a request that is no longer in progress', function () {
@@ -381,7 +416,7 @@ it('forbids acting on a request that is no longer in progress', function () {
 
     $this->patch(route('approval-requests.approve', $request))->assertStatus(403);
     $this->patch(route('approval-requests.forward', $request))->assertStatus(403);
-    $this->patch(route('approval-requests.return', $request), ['remarks' => 'too late'])->assertStatus(403);
+    $this->patch(route('approval-requests.return', $request), ['approved_by_name' => 'Budget Head'])->assertStatus(403);
 });
 
 it('renders the styled 403 page when acting on a decided request', function () {
@@ -427,7 +462,7 @@ it('applies the linked renewal when a renewal chain completes', function () {
     $request->update(['type' => ApprovalRequest::TYPE_RENEWAL, 'renewal_id' => $renewal->id]);
 
     $this->actingAs($user)->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), ['received_by_name' => 'Accounting Clerk'])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request), ['sent_by_name' => 'Budget Officer'])->assertRedirect();
     $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Agency Head'])->assertRedirect();
 
     $subscription->refresh();
@@ -458,7 +493,7 @@ it('leaves the subscription untouched when a pending renewal proposal completes'
     $request->update(['type' => ApprovalRequest::TYPE_RENEWAL, 'renewal_id' => $renewal->id]);
 
     $this->actingAs($user)->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), ['received_by_name' => 'Accounting Clerk'])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request), ['sent_by_name' => 'Budget Officer'])->assertRedirect();
     $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Agency Head'])->assertRedirect();
 
     $subscription->refresh();

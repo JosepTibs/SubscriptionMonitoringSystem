@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import AuthLayout from '@/layouts/auth-layout';
+import AuthLayout from '@/layouts/auth-image-layout';
 
 interface LoginForm {
     [key: string]: string | boolean;
@@ -30,9 +30,6 @@ export default function Login({ status, canResetPassword }: LoginProps) {
     });
 
     const [showPassword, setShowPassword] = useState(false);
-
-    const inputClasses =
-        'border-auth-surface bg-auth-surface text-auth-foreground placeholder:text-auth-muted focus:border-auth-accent focus:ring-auth-accent focus:ring-offset-0';
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -57,7 +54,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
             <form className="flex flex-col gap-6" onSubmit={submit}>
                 <div className="grid gap-6">
                     <div className="grid gap-2">
-                        <Label htmlFor="email" className="text-auth-foreground">
+                        <Label htmlFor="email">
                             Email address
                         </Label>
                         <Input
@@ -70,21 +67,16 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
                             placeholder="email@example.com"
-                            className={inputClasses}
                         />
                         <InputError message={errors.email} />
                     </div>
 
                     <div className="grid gap-2">
                         <div className="flex items-center">
-                            <Label htmlFor="password" className="text-auth-foreground">
+                            <Label htmlFor="password">
                                 Password
                             </Label>
-                            {canResetPassword && (
-                                <TextLink href={route('password.request')} className="text-auth-accent ml-auto text-sm" tabIndex={5}>
-                                    Forgot password?
-                                </TextLink>
-                            )}
+                          
                         </div>
                         <div className="relative w-full">
                             <Input
@@ -96,12 +88,12 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                 value={data.password}
                                 onChange={(e) => setData('password', e.target.value)}
                                 placeholder="Password"
-                                className={`pr-10 ${inputClasses}`}
+                                className="pr-10"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="text-auth-muted hover:text-auth-foreground absolute top-1/2 right-3 -translate-y-1/2"
+                                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
                                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
                                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -112,7 +104,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
 
                     <div className="flex items-center gap-3">
                         <Checkbox id="remember" name="remember" tabIndex={3} />
-                        <Label htmlFor="remember" className="text-auth-foreground">
+                        <Label htmlFor="remember">
                             Remember me
                         </Label>
                     </div>
@@ -121,13 +113,6 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
                         Log in
                     </Button>
-                </div>
-
-                <div className="text-auth-muted text-center text-sm">
-                    Don't have an account?{' '}
-                    <TextLink href={route('register')} tabIndex={5} className="text-auth-accent">
-                        Sign up
-                    </TextLink>
                 </div>
             </form>
         </AuthLayout>

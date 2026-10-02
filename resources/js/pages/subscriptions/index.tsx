@@ -1,9 +1,9 @@
+import CreateSubscriptionSheet from '@/components/create-subscription-sheet';
 import StatusBadge from '@/components/status-badge';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { formatDate, formatPeso } from '@/lib/format';
-import { type BreadcrumbItem, type Subscription } from '@/types';
+import { type ApprovalFlow, type BreadcrumbItem, type Owner, type Subscription } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -33,7 +33,15 @@ function daysRemainingLabel(subscription: Subscription): { text: string; classNa
     return { text: `${days} days`, className: '' };
 }
 
-export default function SubscriptionsIndex({ subscriptions }: { subscriptions: Subscription[] }) {
+export default function SubscriptionsIndex({
+    subscriptions,
+    owners,
+    approval_flows,
+}: {
+    subscriptions: Subscription[];
+    owners: Owner[];
+    approval_flows: ApprovalFlow[];
+}) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Subscriptions" />
@@ -45,9 +53,7 @@ export default function SubscriptionsIndex({ subscriptions }: { subscriptions: S
                         <p className="text-muted-foreground text-sm">All subscriptions managed by the ICT department.</p>
                     </div>
 
-                    <Link href={route('subscriptions.create')}>
-                        <Button>New Subscription</Button>
-                    </Link>
+                    <CreateSubscriptionSheet mode="approved" owners={owners} approvalFlows={approval_flows} />
                 </div>
 
                 <Card className="overflow-x-auto py-0">
@@ -56,7 +62,6 @@ export default function SubscriptionsIndex({ subscriptions }: { subscriptions: S
                             <tr className="text-muted-foreground border-b text-left">
                                 <th className="px-4 py-3 font-medium">Name</th>
                                 <th className="px-4 py-3 font-medium">Provider</th>
-                                <th className="px-4 py-3 font-medium">Office</th>
                                 <th className="px-4 py-3 font-medium">Cost</th>
                                 <th className="px-4 py-3 font-medium">Next renewal</th>
                                 <th className="px-4 py-3 font-medium">Status</th>
@@ -83,7 +88,6 @@ export default function SubscriptionsIndex({ subscriptions }: { subscriptions: S
                                             </Link>
                                         </td>
                                         <td className="px-4 py-3">{subscription.provider}</td>
-                                        <td className="px-4 py-3">{subscription.office?.name ?? '—'}</td>
                                         <td className="px-4 py-3">{formatPeso(subscription.cost)}</td>
                                         <td className="px-4 py-3">{formatDate(subscription.renewal_date)}</td>
                                         <td className="px-4 py-3">

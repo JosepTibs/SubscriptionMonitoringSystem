@@ -20,6 +20,13 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <!--
+            The local .env points at http://127.0.0.1/SubscriptionMonitoringSystem/public,
+            a sub-path. The browser strips that prefix via SCRIPT_NAME, but a test
+            request treats the whole path as PATH_INFO, so every generated URL would
+            miss its route and answer 404. Tests therefore run against a host root.
+        -->
+        <env name="APP_URL" value="http://localhost"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="sqlite"/>

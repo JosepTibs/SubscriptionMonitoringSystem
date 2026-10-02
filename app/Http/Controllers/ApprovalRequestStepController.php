@@ -128,7 +128,6 @@ class ApprovalRequestStepController extends Controller
             'acted_at' => ['nullable', 'date', 'before_or_equal:today'],
             'forwarded_by_name' => ['nullable', 'string', 'max:255'],
             'forwarded_at' => ['nullable', 'date', 'before_or_equal:today'],
-            'remarks' => ['nullable', 'string'],
         ];
     }
 
@@ -147,7 +146,6 @@ class ApprovalRequestStepController extends Controller
             'acted_at' => $step->acted_at?->toDateTimeString(),
             'sent_by' => $step->forwarded_by_name,
             'forwarded_at' => $step->forwarded_at?->toDateTimeString(),
-            'remarks' => $step->remarks,
         ];
     }
 

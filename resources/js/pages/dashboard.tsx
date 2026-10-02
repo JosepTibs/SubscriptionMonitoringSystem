@@ -31,7 +31,7 @@ function daysLabel(subscription: Subscription): { text: string; className: strin
         return { text: `${Math.abs(days)} days overdue`, className: 'text-destructive font-medium' };
     }
 
-    if (days <= 30) {
+    if (days <= 60) {
         return { text: `${days} days`, className: 'text-destructive font-medium' };
     }
 
@@ -54,7 +54,7 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-muted-foreground text-sm font-medium">Expiring 30 days</CardTitle>
+                            <CardTitle className="text-muted-foreground text-sm font-medium">Expiring Sixty(60) days</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold">{stats.expiring_soon}</p>
@@ -100,7 +100,7 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                                 {dueInOneMonth.length === 0 && (
                                     <tr>
                                         <td colSpan={4} className="text-muted-foreground px-4 py-10 text-center">
-                                            Nothing due in the next 30 days.
+                                            Nothing due in the next Sixty(60) days.
                                         </td>
                                     </tr>
                                 )}

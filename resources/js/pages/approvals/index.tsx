@@ -1,5 +1,6 @@
 import ApprovalActions from '@/components/approval-actions';
 import ApprovalStepper from '@/components/approval-stepper';
+import CreateSubscriptionSheet from '@/components/create-subscription-sheet';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
-import { type ApprovalRequest, type BreadcrumbItem, type Office } from '@/types';
+import { type ApprovalFlow, type ApprovalRequest, type BreadcrumbItem, type Office, type Owner } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -50,6 +51,8 @@ interface PaginatedRequests {
 interface ApprovalsIndexProps extends Record<string, unknown> {
     requests: PaginatedRequests;
     offices: Office[];
+    owners: Owner[];
+    approval_flows: ApprovalFlow[];
     filters: { status?: string; type?: string; office_id?: string };
     counts: { in_progress: number; completed: number; returned: number };
 }
@@ -64,17 +67,28 @@ function waitingLabel(request: ApprovalRequest): string {
     return days === 1 ? '1 day' : `${days} days`;
 }
 
-export default function ApprovalsIndex({ requests, offices, filters, counts }: ApprovalsIndexProps) {
+export default function ApprovalsIndex({ requests, offices, owners, approval_flows, filters, counts }: ApprovalsIndexProps) {
     const [status, setStatus] = useState(filters.status && filters.status !== allValue ? filters.status : 'in_progress');
     const [type, setType] = useState(filters.type && filters.type !== allValue ? filters.type : allValue);
     const [officeId, setOfficeId] = useState(filters.office_id && filters.office_id !== allValue ? String(filters.office_id) : allValue);
 
-    const applyFilters = (overrides: Record<string, string> = {}) => {
+    /**
+     * Navigate with the filters as they will be once this change is applied.
+     *
+     * The patch uses the state names - `status`, `type`, `officeId` - so it
+     * always overrides the value it replaces: the setters above have not landed
+     * yet when this runs, and reading state alone would resend the value being
+     * replaced (picking "All" would silently keep the previous filter alive).
+     * The parameter is typed to those three keys so a stray query name such as
+     * `office_id` cannot slip in and set a key nothing ever reads.
+     */
+    const applyFilters = (patch: Partial<Record<'status' | 'type' | 'officeId', string>> = {}) => {
+        const next = { status, type, officeId, ...patch };
+
         const params: Record<string, string> = {
-            ...(status ? { status } : {}),
-            ...(type !== allValue ? { type } : {}),
-            ...(officeId !== allValue ? { office_id: officeId } : {}),
-            ...Object.fromEntries(Object.entries(overrides).filter(([, value]) => value !== '' && value !== allValue)),
+            ...(next.status !== '' && next.status !== allValue ? { status: next.status } : {}),
+            ...(next.type !== '' && next.type !== allValue ? { type: next.type } : {}),
+            ...(next.officeId !== '' && next.officeId !== allValue ? { office_id: next.officeId } : {}),
         };
 
         router.get(route('approvals.index'), params, {
@@ -104,9 +118,7 @@ export default function ApprovalsIndex({ requests, offices, filters, counts }: A
                         description="Requests still travelling the chain, oldest first. Your account is not tied to an office yet, so pick an office to narrow the queue."
                     />
 
-                    <Link href={route('approvals.create')}>
-                        <Button>Submit for Approval</Button>
-                    </Link>
+                    <CreateSubscriptionSheet mode="for_approval" owners={owners} approvalFlows={approval_flows} />
                 </div>
 
                 <Card>
@@ -150,7 +162,7 @@ export default function ApprovalsIndex({ requests, offices, filters, counts }: A
                                 value={officeId}
                                 onValueChange={(value) => {
                                     setOfficeId(value);
-                                    applyFilters({ office_id: value });
+                                    applyFilters({ officeId: value });
                                 }}
                             >
                                 <SelectTrigger className="w-56" aria-label="Office">
@@ -179,7 +191,7 @@ export default function ApprovalsIndex({ requests, offices, filters, counts }: A
                                     <TableHead>Chain</TableHead>
                                     <TableHead>Current office</TableHead>
                                     <TableHead className="text-center">Waiting</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -217,17 +229,6 @@ export default function ApprovalsIndex({ requests, offices, filters, counts }: A
                                                 {request.flow && <div className="text-muted-foreground text-xs">{request.flow.name}</div>}
                                             </TableCell>
                                             <TableCell className="text-center">{waitingLabel(request)}</TableCell>
-                                            <TableCell>
-                                                <div className="flex justify-end">
-                                                    {request.status === 'in_progress' ? (
-                                                        <ApprovalActions request={request} />
-                                                    ) : (
-                                                        <Badge variant={statusVariants[request.status] ?? 'secondary'}>
-                                                            {statusLabels[request.status] ?? request.status}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </TableCell>
                                         </TableRow>
                                     ))
                                 )}

@@ -34,7 +34,6 @@ class ApprovalRequestStep extends Model
         'received_at',
         'forwarded_by_name',
         'forwarded_at',
-        'remarks',
     ];
 
     public function approvalRequest(): BelongsTo

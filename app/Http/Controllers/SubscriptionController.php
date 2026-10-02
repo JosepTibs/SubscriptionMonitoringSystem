@@ -15,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,6 +29,7 @@ class SubscriptionController extends Controller
         $today = Carbon::today();
 
         $subscriptions = Subscription::query()
+            ->where('status', 'not like', '%pending%')
             ->with('office', 'owner')
             // Subscriptions still travelling an approval chain carry no dates
             // yet, so they sit at the bottom until their dates are recorded.
@@ -42,6 +44,9 @@ class SubscriptionController extends Controller
 
         return Inertia::render('subscriptions/index', [
             'subscriptions' => $subscriptions,
+            // The create sheet renders the shared subscription form, so the
+            // list needs the same option sets the create page was given.
+            ...$this->formOptions(),
         ]);
     }
 
@@ -61,21 +66,23 @@ class SubscriptionController extends Controller
         $validated = $request->validate([
             ...$this->subscriptionRules($request->input('intake_mode') === 'for_approval'),
             'intake_mode' => ['required', 'in:approved,for_approval'],
+            // Whitelisted to the two index routes so a caller cannot use this
+            // as an open redirect. Omitting it keeps the default redirect to
+            // the new subscription.
+            'return_to' => ['nullable', Rule::in(['subscriptions.index', 'approvals.index'])],
             // required_if is deliberately NOT used: omitting a flow id falls
             // back to the default flow in the transaction below.
             'approval_flow_id' => ['nullable', 'integer', 'exists:approval_flows,id'],
-            // The contact receiving the papers at the first office. Required
-            // whenever the subscription actually travels a chain: without it
-            // the first step cannot be marked received and its received_at
-            // stays null, so the trail would lose the first hand-off entirely.
-            // PRD §0: a person at that office, typed by ICT — never the acting
-            // account.
-            'received_by_name' => ['required_if:intake_mode,for_approval', 'nullable', 'string', 'max:255'],
         ]);
+
+        $returnTo = $validated['return_to'] ?? null;
 
         [$subscription, $forApproval] = DB::transaction(function () use ($request, $validated): array {
             $forApproval = $validated['intake_mode'] === 'for_approval';
             $flow = null;
+
+            // Neither key is a column on the subscription.
+            unset($validated['intake_mode'], $validated['return_to']);
 
             if ($forApproval) {
                 $flow = ($validated['approval_flow_id'] ?? null) !== null
@@ -85,15 +92,12 @@ class SubscriptionController extends Controller
                 abort_unless($flow !== null, 422, 'No default approval flow exists - set one first.');
 
                 $validated['status'] = 'pending_approval';
-                unset($validated['intake_mode']);
-            } else {
-                unset($validated['intake_mode']);
             }
 
             $subscription = Subscription::create($validated);
 
             if ($forApproval) {
-                $this->createProcurementRequest($subscription, $flow, $request->user(), $validated['received_by_name'] ?? null);
+                $this->createProcurementRequest($subscription, $flow, $request->user());
             }
 
             return [$subscription, $forApproval];
@@ -107,6 +111,12 @@ class SubscriptionController extends Controller
                 newValues: $subscription->getAttributes(),
                 description: 'Created subscription "'.$subscription->name.'"',
             );
+        }
+
+        // The create sheet stays on the list it was opened from; anything else
+        // lands on the new subscription, as before.
+        if ($returnTo !== null) {
+            return to_route($returnTo);
         }
 
         return to_route('subscriptions.show', $subscription);
@@ -135,6 +145,7 @@ class SubscriptionController extends Controller
                 : $subscription->renewal_date->copy()->addYears($subscription->billing_interval));
 
         return Inertia::render('subscriptions/show', [
+            ...$this->formOptions(),
             'subscription' => $subscription,
             'approval_requests' => $subscription->approvalRequests,
             'days_until_renewal' => $subscription->renewal_date === null
@@ -276,9 +287,9 @@ class SubscriptionController extends Controller
         ];
     }
 
-    private function createProcurementRequest(Subscription $subscription, ApprovalFlow $flow, User $user, ?string $receivedByName = null): ApprovalRequest
+    private function createProcurementRequest(Subscription $subscription, ApprovalFlow $flow, User $user): ApprovalRequest
     {
-        $approvalRequest = ApprovalChain::start($subscription, $flow, ApprovalRequest::TYPE_PROCUREMENT, null, $receivedByName);
+        $approvalRequest = ApprovalChain::start($subscription, $flow, ApprovalRequest::TYPE_PROCUREMENT);
         $approvalRequest->load('currentOffice');
 
         AuditTrail::record(
@@ -289,7 +300,6 @@ class SubscriptionController extends Controller
                 'status' => 'pending_approval',
                 'approval_flow' => $flow->name,
                 'current_office' => $approvalRequest->currentOffice?->name,
-                'received_by' => $receivedByName,
             ],
             description: 'Submitted subscription "'.$subscription->name.'" for approval via flow "'.$flow->name.'"',
         );

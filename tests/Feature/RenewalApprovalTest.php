@@ -3,6 +3,7 @@
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalFlowStep;
 use App\Models\ApprovalRequest;
+use App\Models\ApprovalRequestStep;
 use App\Models\AuditLog;
 use App\Models\Office;
 use App\Models\Subscription;
@@ -57,7 +58,6 @@ it('opens a renewal approval request with a flow snapshot on a renewed decision'
             'new_renewal_date' => '2027-06-01',
             'new_cost' => '60000',
             'remarks' => 'Vendor gave a discount',
-            'received_by_name' => 'Records Clerk',
         ])
         ->assertRedirect(route('subscriptions.show', $subscription));
 
@@ -80,8 +80,11 @@ it('opens a renewal approval request with a flow snapshot on a renewed decision'
         ->and($request->current_office_id)->toBe($offices[0]->id)
         ->and($request->steps()->count())->toBe(2)
         ->and($request->steps()->pluck('step_order')->all())->toBe([1, 2])
-        ->and($request->steps()->first()->received_by_name)->toBe('Records Clerk')
-        ->and($request->steps()->first()->received_at)->not->toBeNull();
+        // Submission captures nothing: the first office records its own
+        // receiver when the papers reach it.
+        ->and($request->steps()->first()->status)->toBe(ApprovalRequestStep::STATUS_PENDING)
+        ->and($request->steps()->first()->received_by_name)->toBeNull()
+        ->and($request->steps()->first()->received_at)->toBeNull();
 
     // The proposal must not reach the subscription until the chain completes.
     $subscription->refresh();
@@ -108,7 +111,6 @@ it('opens a pending renewal request through the default flow', function () {
             'new_renewal_date' => '2027-01-01',
             'new_cost' => '1500',
             'remarks' => 'Waiting on the vendor quote',
-            'received_by_name' => 'Records Clerk',
         ])
         ->assertRedirect();
 
@@ -154,7 +156,6 @@ it('blocks a renewal when no approval flow is configured', function () {
             'decision' => 'renewed',
             'new_renewal_date' => '2027-06-01',
             'new_cost' => '60000',
-            'received_by_name' => 'Records Clerk',
         ])
         ->assertSessionHasErrors('decision');
 
@@ -176,14 +177,13 @@ it('applies the approved renewal to the subscription when the chain completes', 
             'new_renewal_date' => '2027-06-01',
             'new_cost' => '60000',
             'remarks' => 'Approved by management',
-            'received_by_name' => 'Records Clerk',
         ])
         ->assertRedirect();
 
     $request = ApprovalRequest::where('subscription_id', $subscription->id)->firstOrFail();
 
     $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Budget Head'])->assertRedirect();
-    $this->patch(route('approval-requests.forward', $request), ['received_by_name' => 'Accounting Clerk'])->assertRedirect();
+    $this->patch(route('approval-requests.forward', $request), ['sent_by_name' => 'Budget Officer'])->assertRedirect();
     $this->patch(route('approval-requests.approve', $request), ['approved_by_name' => 'Agency Head'])->assertRedirect();
 
     $subscription->refresh();

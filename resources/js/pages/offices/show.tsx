@@ -130,13 +130,12 @@ export default function OfficeShow({ office, chain_position, history, counts, fi
                                     <TableHead>Received by</TableHead>
                                     <TableHead>Approved by</TableHead>
                                     <TableHead>Handled</TableHead>
-                                    <TableHead>Remarks</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {history.data.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="text-muted-foreground py-6 text-center">
+                                        <TableCell colSpan={6} className="text-muted-foreground py-6 text-center">
                                             {activeBucket === 'all'
                                                 ? 'No subscriptions have passed through this office yet.'
                                                 : `No ${bucketLabels[activeBucket].toLowerCase()} papers recorded at this office yet.`}
@@ -174,7 +173,6 @@ export default function OfficeShow({ office, chain_position, history, counts, fi
                                                 <TableCell>{row.received_by_name ?? '—'}</TableCell>
                                                 <TableCell>{row.approved_by_name ?? '—'}</TableCell>
                                                 <TableCell>{formatDate(row.acted_at ?? row.received_at)}</TableCell>
-                                                <TableCell className="max-w-xs truncate text-sm">{row.remarks ?? '—'}</TableCell>
                                             </TableRow>
                                         );
                                     })

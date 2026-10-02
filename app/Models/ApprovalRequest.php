@@ -35,7 +35,6 @@ class ApprovalRequest extends Model
         'status',
         'decided_by',
         'decided_at',
-        'remarks',
     ];
 
     public function subscription(): BelongsTo

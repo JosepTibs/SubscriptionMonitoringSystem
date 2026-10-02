@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type ApprovalFlow, type Office, type Owner, type Subscription } from '@/types';
-import { type FormEventHandler, useEffect, useState } from 'react';
+import { type ApprovalFlow, type Owner, type Subscription } from '@/types';
+import { type FormEventHandler, type Ref, useEffect, useState } from 'react';
 
 export type SubscriptionFormData = {
     provider: string;
@@ -14,10 +14,8 @@ export type SubscriptionFormData = {
     billing_interval_unit: 'month' | 'year';
     start_date: string;
     renewal_date: string;
-    office_id: string | null;
     owner_id: string | null;
     approval_flow_id: string | null;
-    received_by_name: string;
     status: string;
     description: string;
 };
@@ -29,15 +27,18 @@ interface SubscriptionFormProps {
     processing: boolean;
     submitLabel: string;
     onSubmit: FormEventHandler;
-    offices: Office[];
+    
     owners: Owner[];
     approvalFlows: ApprovalFlow[];
     subscription?: Subscription;
     showApprovalFlow?: boolean;
-    showReceivedBy?: boolean;
     showDates?: boolean;
     datesRequired?: boolean;
     showStatus?: boolean;
+    showActions?: boolean;
+    showDescription?: boolean;
+    syncRenewalDate?: boolean;
+    formRef?: Ref<HTMLFormElement>;
     extra?: React.ReactNode;
 }
 
@@ -48,18 +49,20 @@ export default function SubscriptionForm({
     processing,
     submitLabel,
     onSubmit,
-    offices,
     owners,
     approvalFlows,
     showApprovalFlow = true,
-    showReceivedBy = false,
     showDates = true,
     datesRequired = true,
     showStatus = true,
+    showActions = true,
+    showDescription = true,
+    syncRenewalDate = true,
+    formRef,
     extra,
 }: SubscriptionFormProps) {
     useEffect(() => {
-        if (!showDates) {
+        if (!showDates || !syncRenewalDate) {
             return;
         }
 
@@ -76,7 +79,7 @@ export default function SubscriptionForm({
 
             setData('renewal_date', date.toISOString().split('T')[0]);
         }
-    }, [data.start_date, data.billing_interval, showDates]);
+    }, [data.start_date, data.billing_interval,data.billing_interval_unit, showDates, syncRenewalDate]);
 
     useEffect(() => {
         if (showApprovalFlow && (!data.approval_flow_id || data.approval_flow_id === 'none')) {
@@ -88,7 +91,7 @@ export default function SubscriptionForm({
         }
     }, [approvalFlows, showApprovalFlow]);
 
-    const [costFocused, setCostFocused] = useState(false);
+    
 
     const formatCost = (value: string) => {
         // Remove commas
@@ -107,7 +110,7 @@ export default function SubscriptionForm({
     };
 
     return (
-        <form onSubmit={onSubmit} className="space-y-6">
+        <form ref={formRef} onSubmit={onSubmit} className="space-y-6">
             {extra}
             <div className="grid gap-6 md:grid-cols-2">
                 <div className="grid gap-2">
@@ -267,24 +270,25 @@ export default function SubscriptionForm({
                     </div>
                 )}
 
-                {showReceivedBy && (
-                    <div className="grid gap-2">
-                        <Label htmlFor="received_by_name">Received by</Label>
-                        <Input
-                            id="received_by_name"
-                            value={data.received_by_name}
-                            onChange={(e) => setData('received_by_name', e.target.value)}
-                            placeholder="Contact at the first office"
-                            required
+                {showDescription && (
+                    <div className="grid gap-2 md:col-span-2">
+                        <Label htmlFor="description">Remarks / notes</Label>
+                        <textarea
+                            id="description"
+                            value={data.description}
+                            onChange={(e) => setData('description', e.target.value)}
+                            className="border-input bg-background min-h-24 w-full rounded-md border px-3 py-2 text-sm"
                         />
-                        <InputError message={errors.received_by_name} />
+                        <InputError message={errors.description} />
                     </div>
                 )}
             </div>
 
-            <div className="flex items-center gap-4">
-                <Button disabled={processing}>{submitLabel}</Button>
-            </div>
+            {showActions && (
+                <div className="flex items-center gap-4">
+                    <Button disabled={processing}>{submitLabel}</Button>
+                </div>
+            )}
         </form>
     );
 }

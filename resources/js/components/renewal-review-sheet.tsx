@@ -23,7 +23,6 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
         decision: 'pending',
         new_renewal_date: suggested_renewal_date,
         new_cost: suggested_cost,
-        received_by_name: '',
         remarks: '',
     });
 
@@ -107,18 +106,6 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
                             onChange={(e) => setData('new_cost', e.target.value)}
                         />
                         <InputError message={errors.new_cost} />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="received_by_name">Received by</Label>
-                        <Input
-                            id="received_by_name"
-                            value={data.received_by_name}
-                            onChange={(e) => setData('received_by_name', e.target.value)}
-                            placeholder="Contact at the first office"
-                            required={data.decision !== 'cancelled'}
-                        />
-                        <InputError message={errors.received_by_name} />
                     </div>
 
                     <div className="grid gap-2">

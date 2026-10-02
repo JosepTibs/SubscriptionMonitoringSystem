@@ -15,7 +15,6 @@ class DashboardController extends Controller
     public function index(): Response
     {
         $today = Carbon::today();
-        $inThirtyDays = $today->copy()->addDays(30);
         $inSixtyDays = $today->copy()->addDays(60);
 
         $baseQuery = Subscription::query()->whereNot('status', 'cancelled');
@@ -24,7 +23,7 @@ class DashboardController extends Controller
             'active' => (clone $baseQuery)->where('status', 'active')->count(),
             'expiring_soon' => (clone $baseQuery)
                 ->where('status', 'active')
-                ->whereBetween('renewal_date', [$today->toDateString(), $inThirtyDays->toDateString()])
+                ->whereBetween('renewal_date', [$today->toDateString(), $inSixtyDays->toDateString()])
                 ->count(),
             'overdue' => (clone $baseQuery)
                 ->where('status', 'active')
@@ -36,7 +35,7 @@ class DashboardController extends Controller
         $dueInOneMonth = Subscription::query()
             ->with(['office', 'owner'])
             ->where('status', 'active')
-            ->where('renewal_date', '<=', $inThirtyDays->toDateString())
+            ->where('renewal_date', '<=', $inSixtyDays->toDateString())
             ->orderBy('renewal_date')
             ->limit(10)
             ->get()

@@ -72,7 +72,6 @@ it('creates a pending_approval subscription with a snapshot on the for_approval 
         ->post(route('subscriptions.store'), validSubscriptionPayload([
             'intake_mode' => 'for_approval',
             'approval_flow_id' => (string) $flow->id,
-            'received_by_name' => 'Records Clerk',
             'status' => 'active', // client-sent status must be overridden
         ]))
         ->assertRedirect();
@@ -91,9 +90,11 @@ it('creates a pending_approval subscription with a snapshot on the for_approval 
     expect($steps->count())->toBe(3)
         ->and($steps->pluck('office_id')->all())->toBe([$offices[2]->id, $offices[1]->id, $offices[0]->id])
         ->and($steps->pluck('step_order')->all())->toBe([1, 2, 3])
-        ->and($steps->first()->status)->toBe(ApprovalRequestStep::STATUS_RECEIVED)
-        ->and($steps->first()->received_by_name)->toBe('Records Clerk')
-        ->and($steps->first()->received_at)->not->toBeNull()
+        // Nothing is captured at submission: the first office's contact and the
+        // date received are typed in when the papers reach it.
+        ->and($steps->first()->status)->toBe(ApprovalRequestStep::STATUS_PENDING)
+        ->and($steps->first()->received_by_name)->toBeNull()
+        ->and($steps->first()->received_at)->toBeNull()
         ->and($steps->skip(1)->every(fn ($step) => $step->status === ApprovalRequestStep::STATUS_PENDING))->toBeTrue();
 
     $audit = AuditLog::where('action', 'Subscription Submitted for Approval')
@@ -116,7 +117,6 @@ it('falls back to the default flow when no flow is chosen', function () {
     $this->actingAs($user)
         ->post(route('subscriptions.store'), validSubscriptionPayload([
             'intake_mode' => 'for_approval',
-            'received_by_name' => 'Records Clerk',
         ]))
         ->assertRedirect();
 
@@ -125,7 +125,7 @@ it('falls back to the default flow when no flow is chosen', function () {
         ->and($request->current_office_id)->toBe($office->id);
 });
 
-it('records the typed receiver on the first step of the chain', function () {
+it('leaves the first step open for the receiver to be typed later', function () {
     $user = actingUser();
     $flow = ApprovalFlow::factory()->default()->create();
     $office = Office::factory()->create();
@@ -138,21 +138,21 @@ it('records the typed receiver on the first step of the chain', function () {
     $this->actingAs($user)
         ->post(route('subscriptions.store'), validSubscriptionPayload([
             'intake_mode' => 'for_approval',
-            'received_by_name' => 'Maria Santos',
         ]))
         ->assertRedirect();
 
     $step = ApprovalRequest::first()->steps->first();
 
-    // The receiver is the contact at the office, typed by ICT — it must never
-    // be the acting account (PRD §0).
-    expect($step->status)->toBe(ApprovalRequestStep::STATUS_RECEIVED)
-        ->and($step->received_by_name)->toBe('Maria Santos')
+    // Submission names nobody: the office's own contact is typed on the trail
+    // when the papers reach it, so the acting account's name can never stand in
+    // for somebody else (PRD section 0).
+    expect($step->status)->toBe(ApprovalRequestStep::STATUS_PENDING)
+        ->and($step->received_by_name)->toBeNull()
         ->and($step->received_by_name)->not->toBe($user->name)
-        ->and($step->received_at)->not->toBeNull();
+        ->and($step->received_at)->toBeNull();
 });
 
-it('requires a receiver on the for_approval path', function () {
+it('ignores a receiver posted with a for_approval intake', function () {
     actingUser();
     $flow = ApprovalFlow::factory()->default()->create();
     $office = Office::factory()->create();
@@ -165,11 +165,13 @@ it('requires a receiver on the for_approval path', function () {
     $this->actingAs(actingUser())
         ->post(route('subscriptions.store'), validSubscriptionPayload([
             'intake_mode' => 'for_approval',
+            'received_by_name' => 'Records Clerk',
         ]))
-        ->assertSessionHasErrors('received_by_name');
+        ->assertRedirect();
 
-    expect(Subscription::count())->toBe(0)
-        ->and(ApprovalRequest::count())->toBe(0);
+    // Nothing may claim that somebody received papers the chain has not even
+    // started moving: the receiver belongs to the runtime, not to intake.
+    expect(ApprovalRequest::first()->steps->first()->received_by_name)->toBeNull();
 });
 
 it('blocks for_approval intake when no flow is chosen and no default exists', function () {
@@ -178,7 +180,6 @@ it('blocks for_approval intake when no flow is chosen and no default exists', fu
     $this->actingAs(actingUser())
         ->post(route('subscriptions.store'), validSubscriptionPayload([
             'intake_mode' => 'for_approval',
-            'received_by_name' => 'Records Clerk',
         ]))
         ->assertStatus(422);
 
@@ -233,7 +234,6 @@ it('registers a subscription for approval without any dates', function () {
     // its chain has no confirmed start or renewal date yet.
     $payload = validSubscriptionPayload([
         'intake_mode' => 'for_approval',
-        'received_by_name' => 'Records Clerk',
     ]);
 
     unset($payload['start_date'], $payload['renewal_date']);

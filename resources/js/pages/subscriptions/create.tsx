@@ -1,6 +1,6 @@
 import Heading from '@/components/heading';
 import AppLayout from '@/layouts/app-layout';
-import { type ApprovalFlow, type BreadcrumbItem, type Office, type Owner } from '@/types';
+import { type ApprovalFlow, type BreadcrumbItem, type Owner } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import { type FormEventHandler } from 'react';
 import SubscriptionForm, { type SubscriptionFormData } from './partials/subscription-form';
@@ -12,7 +12,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 interface CreateProps {
-    offices: Office[];
     owners: Owner[];
     approval_flows: ApprovalFlow[];
 }
@@ -22,7 +21,7 @@ interface CreateProps {
  * approval chain here, so the dates are captured up front. Subscriptions that
  * still need sign-off are registered from the approvals screen instead.
  */
-export default function CreateSubscription({ offices, owners, approval_flows }: CreateProps) {
+export default function CreateSubscription({ owners, approval_flows }: CreateProps) {
     const { data, setData, transform, post, processing, errors } = useForm<SubscriptionFormData>({
         provider: '',
         name: '',
@@ -31,10 +30,8 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
         billing_interval_unit: 'year',
         start_date: '',
         renewal_date: '',
-        office_id: 'none',
         owner_id: 'none',
         approval_flow_id: 'none',
-        received_by_name: '',
         status: 'active',
         description: '',
     });
@@ -45,7 +42,6 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
         transform((payload) => ({
             ...payload,
             intake_mode: 'approved',
-            office_id: payload.office_id === 'none' ? null : payload.office_id,
             owner_id: payload.owner_id === 'none' ? null : payload.owner_id,
             approval_flow_id: payload.approval_flow_id === 'none' ? null : payload.approval_flow_id,
         }));
@@ -70,7 +66,6 @@ export default function CreateSubscription({ offices, owners, approval_flows }: 
                     processing={processing}
                     submitLabel="Create Subscription"
                     onSubmit={submit}
-                    offices={offices}
                     owners={owners}
                     approvalFlows={approval_flows}
                     showApprovalFlow={false}

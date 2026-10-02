@@ -75,7 +75,6 @@ export interface ApprovalRequestStep {
     received_at: string | null;
     forwarded_by_name: string | null;
     forwarded_at: string | null;
-    remarks: string | null;
     office?: Office | null;
     actor?: User | null;
     approval_request?: ApprovalRequest;
@@ -95,7 +94,6 @@ export interface ApprovalRequest {
     status: ApprovalRequestStatus;
     decided_by: number | null;
     decided_at: string | null;
-    remarks: string | null;
     created_at: string;
     subscription?: Subscription | null;
     flow?: ApprovalFlow | null;

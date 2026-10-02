@@ -18,31 +18,24 @@ interface ActionCopy {
     nameField: string;
     nameLabel: string;
     namePlaceholder: string;
-    /** Second typed name, only where the person releasing the papers can differ. */
-    senderField?: string;
-    senderLabel?: string;
-    senderPlaceholder?: string;
 }
 
 const actionCopy: Record<ApprovalAction, ActionCopy> = {
     approve: {
         title: 'Record approval',
-        description: 'Signs off. Stays here until forwarded. Name the office head who approved.',
+        description: 'Signs off. Stays here until released. Name the office head who approved.',
         confirm: 'Record Approval',
         nameField: 'approved_by_name',
         nameLabel: 'Approved by',
         namePlaceholder: 'Office head who approved',
     },
     forward: {
-        title: 'Forward to next office',
-        description: 'Moves on. Inactive offices are skipped. Name who is releasing the papers here and the contact receiving them there.',
-        confirm: 'Forward',
-        nameField: 'received_by_name',
-        nameLabel: 'Received by',
-        namePlaceholder: 'Contact at the next office',
-        senderField: 'sent_by_name',
-        senderLabel: 'Sent by',
-        senderPlaceholder: 'Person releasing the papers from this office',
+        title: 'Release to the next office',
+        description: 'Releases the papers. Inactive offices are skipped. Name who is releasing them here — the next office records its own receiver when the papers reach it.',
+        confirm: 'Release',
+        nameField: 'sent_by_name',
+        nameLabel: 'Sent by',
+        namePlaceholder: 'Person releasing the papers from this office',
     },
     return: {
         title: 'Return the request',
@@ -54,13 +47,9 @@ const actionCopy: Record<ApprovalAction, ActionCopy> = {
     },
 };
 
-const textareaClassName = 'border-input flex min-h-16 w-full rounded-lg border px-3 py-2 text-sm';
-
 export default function ApprovalActions({ request }: { request?: ApprovalRequest | null }) {
     const [action, setAction] = useState<ApprovalAction | null>(null);
-    const [remarks, setRemarks] = useState('');
     const [signatoryName, setSignatoryName] = useState('');
-    const [senderName, setSenderName] = useState('');
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState('');
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -74,32 +63,15 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
 
     const step = currentStepOf(request);
 
-    let canApprove = false;
-    if (step != null) {
-        if (step.status === 'pending') {
-            canApprove = true;
-        }
-        if (step.status === 'received') {
-            canApprove = true;
-        }
-        if (step.status === 'returned') {
-            canApprove = true;
-        }
-    }
-
-    let canForward = false;
-    if (step != null) {
-        if (step.status === 'approved') {
-            canForward = true;
-        }
-    }
+    // The buttons stay available whatever the step's state: the runtime answers
+    // with the real reason (422) when a step is not at that point yet and the
+    // dialog shows the message. Only the hint below is state-aware.
+    const canForward = step?.status === 'approved';
 
     const openDialog = (next: ApprovalAction) => {
         setError('');
         setFieldErrors({});
-        setRemarks('');
         setSignatoryName('');
-        setSenderName('');
         setAction(next);
     };
     const closeDialog = () => {
@@ -115,11 +87,10 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
         setError('');
         setFieldErrors({});
         const url = route('approval-requests.' + action, request.id);
-        const { nameField, senderField } = actionCopy[action];
-        const sentBy = senderField != null ? { [senderField]: senderName } : {};
+        const { nameField } = actionCopy[action];
         router.patch(
             url,
-            { remarks: remarks, [nameField]: signatoryName, ...sentBy },
+            { [nameField]: signatoryName },
             {
                 preserveScroll: true,
                 onError: (errors) => {
@@ -129,9 +100,7 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
                 },
                 onSuccess: () => {
                     setAction(null);
-                    setRemarks('');
                     setSignatoryName('');
-                    setSenderName('');
                 },
                 onFinish: () => {
                     setProcessing(false);
@@ -141,17 +110,15 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
     };
 
     const nameError = action != null ? (fieldErrors[actionCopy[action].nameField] ?? '') : '';
-    const senderError = action != null && actionCopy[action].senderField != null ? (fieldErrors[actionCopy[action].senderField] ?? '') : '';
-    const remarksError = fieldErrors.remarks ?? '';
 
     return (
         <>
             <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" onClick={() => openDialog('approve')} disabled={!canApprove}>
+                <Button size="sm" onClick={() => openDialog('approve')}>
                     <Check className="h-4 w-4" /> Approve
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => openDialog('forward')} disabled={!canForward}>
-                    <Forward className="h-4 w-4" /> Forward
+                <Button size="sm" variant="outline" onClick={() => openDialog('forward')}>
+                    <Forward className="h-4 w-4" /> Release
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => openDialog('return')}>
                     <Undo2 className="h-4 w-4" /> Return
@@ -180,33 +147,8 @@ export default function ApprovalActions({ request }: { request?: ApprovalRequest
                                     value={signatoryName}
                                     onChange={(event) => setSignatoryName(event.target.value)}
                                     placeholder={actionCopy[action].namePlaceholder}
-                                    required
                                 />
-                                <InputError message={nameError} />
-                            </div>
-                            {actionCopy[action].senderField != null ? (
-                                <div className="grid gap-2">
-                                    <Label htmlFor="approval-sender">{actionCopy[action].senderLabel}</Label>
-                                    <Input
-                                        id="approval-sender"
-                                        value={senderName}
-                                        onChange={(event) => setSenderName(event.target.value)}
-                                        placeholder={actionCopy[action].senderPlaceholder}
-                                        required
-                                    />
-                                    <InputError message={senderError} />
-                                </div>
-                            ) : null}
-                            <div className="grid gap-2">
-                                <Label htmlFor="approval-remarks">Remarks</Label>
-                                <textarea
-                                    id="approval-remarks"
-                                    className={textareaClassName}
-                                    value={remarks}
-                                    onChange={(event) => setRemarks(event.target.value)}
-                                    placeholder="Notes recorded on the trail"
-                                />
-                                <InputError message={remarksError !== '' ? remarksError : error} />
+                                <InputError message={nameError !== '' ? nameError : error} />
                             </div>
                             <DialogFooter>
                                 <Button type="button" variant="outline" onClick={closeDialog} disabled={processing}>

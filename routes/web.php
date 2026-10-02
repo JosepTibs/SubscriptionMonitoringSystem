@@ -33,6 +33,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('approvals', [ApprovalRequestController::class, 'index'])->name('approvals.index');
     Route::get('approvals/create', [ApprovalRequestController::class, 'create'])->name('approvals.create');
 
+    Route::patch('approval-requests/{approval_request}/receive', [ApprovalRequestController::class, 'receive'])
+        ->name('approval-requests.receive');
     Route::patch('approval-requests/{approval_request}/approve', [ApprovalRequestController::class, 'approve'])
         ->name('approval-requests.approve');
     Route::patch('approval-requests/{approval_request}/forward', [ApprovalRequestController::class, 'forward'])

@@ -21,9 +21,11 @@ use Inertia\Response;
  * Office-to-office runtime for approval requests.
  *
  * The index lists the approval queue - requests still travelling the chain -
- * while approve records the office's sign-off without moving the pointer,
- * forward hands the request to the next active office in the snapshot and
- * return stops the chain. Approving the final effective step completes the
+ * while receive and approve record who received the papers and who signed off
+ * at the office holding them, forward releases them to the next active office
+ * in the snapshot and return stops the chain. Every date is stamped by the
+ * service as a name is saved - never typed - and no name is ever derived from
+ * the acting account (PRD §0). Approving the final effective step completes the
  * chain and applies its outcome (see ApprovalChain::complete).
  */
 class ApprovalRequestController extends Controller
@@ -67,6 +69,10 @@ class ApprovalRequestController extends Controller
         return Inertia::render('approvals/index', [
             'requests' => $requests,
             'offices' => Office::ordered()->get(['id', 'name']),
+            // Feeds the office select inside the create sheet. The other two
+            // are the remaining option sets the shared form needs.
+            'owners' => Owner::query()->orderBy('name')->get(),
+            'approval_flows' => ApprovalFlow::query()->orderBy('name')->get(),
             'filters' => $request->only(['status', 'type', 'office_id']),
             'counts' => [
                 'in_progress' => ApprovalRequest::query()
@@ -98,7 +104,11 @@ class ApprovalRequestController extends Controller
     }
 
     /**
-     * Record the current office's approval without moving the pointer.
+     * Record the office's approval without moving the pointer.
+     *
+     * The approval date is stamped the first time the name is saved, so a later
+     * spelling correction cannot move it. Approving the final effective step
+     * completes the chain and applies its outcome (see ApprovalChain::complete).
      */
     public function approve(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
     {
@@ -106,39 +116,29 @@ class ApprovalRequestController extends Controller
         // always a 403, regardless of the payload.
         $this->requireInProgress($approvalRequest);
 
-        $validated = $request->validate([
-            'remarks' => ['nullable', 'string'],
-            // The office's decision-maker, typed by ICT (PRD §0 — never the
-            // acting account's name).
-            'approved_by_name' => ['required', 'string', 'max:255'],
-        ]);
-
         $step = $this->currentStep($approvalRequest);
+
+        $this->requirePapersHere($approvalRequest, $step);
 
         abort_if(
             in_array($step->status, [
-                ApprovalRequestStep::STATUS_APPROVED,
                 ApprovalRequestStep::STATUS_FORWARDED,
                 ApprovalRequestStep::STATUS_RETURNED,
             ], true),
             422,
-            'This step has already been actioned.'
+            'This step has already left the office.'
         );
+
+        $validated = $request->validate([
+            'approved_by_name' => ['required', 'string', 'max:255'],
+        ]);
 
         $completesChain = $this->nextActiveStep($approvalRequest, $step) === null;
 
         DB::transaction(function () use ($approvalRequest, $step, $validated, $request, $completesChain): void {
             $previousStatus = $step->status;
 
-            $step->update([
-                'status' => ApprovalRequestStep::STATUS_APPROVED,
-                'acted_by' => $request->user()->id,
-                'approved_by_name' => $validated['approved_by_name'],
-                // Stamped by the system: dates are never typed on the runtime,
-                // only corrected afterwards (see ApprovalRequestStepController).
-                'acted_at' => now(),
-                'remarks' => $validated['remarks'] ?? null,
-            ]);
+            ApprovalChain::markApproved($step, $validated['approved_by_name'], $request->user());
 
             AuditTrail::record(
                 user: $request->user(),
@@ -165,8 +165,59 @@ class ApprovalRequestController extends Controller
     }
 
     /**
-     * Hand the request to the next snapshot step whose office is still active.
-     * Deactivated offices are skipped; their history rows are left untouched.
+     * Record the contact who received the papers at the office holding them.
+     *
+     * The date received is stamped by the server the moment the name is saved
+     * (see ApprovalChain::markReceived): it is never typed, and never taken from
+     * the acting account (PRD §0).
+     */
+    public function receive(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
+    {
+        $this->requireInProgress($approvalRequest);
+
+        $step = $this->currentStep($approvalRequest);
+
+        $this->requirePapersHere($approvalRequest, $step);
+
+        $validated = $request->validate([
+            'received_by_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        DB::transaction(function () use ($approvalRequest, $step, $validated, $request): void {
+            $previous = [
+                'office' => $step->office->name,
+                'received_by' => $step->received_by_name,
+                'received_at' => $step->received_at?->toDateTimeString(),
+            ];
+
+            ApprovalChain::markReceived($step, $validated['received_by_name']);
+
+            AuditTrail::record(
+                user: $request->user(),
+                action: 'Approval Received',
+                auditable: $approvalRequest->subscription,
+                oldValues: $previous,
+                newValues: [
+                    'office' => $step->office->name,
+                    'received_by' => $validated['received_by_name'],
+                    'received_at' => $step->refresh()->received_at?->toDateTimeString(),
+                ],
+                description: 'Recorded the receiver at "'.$step->office->name.'" for "'.$approvalRequest->subscription->name.'"',
+            );
+        });
+
+        return to_route('subscriptions.show', $approvalRequest->subscription_id)
+            ->with('success', 'Receiver recorded at '.$step->office->name.'.');
+    }
+
+    /**
+     * Release the papers from the office holding them.
+     *
+     * Naming the sender is the release: the release date is stamped here (see
+     * ApprovalChain::markReleased) and the pointer moves on to the next active
+     * office. Deactivated offices are skipped; their history rows are left
+     * untouched. The destination's own receiver is recorded when the papers are
+     * typed in there, so nothing is stamped ahead of the hand-off.
      */
     public function forward(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
     {
@@ -174,39 +225,26 @@ class ApprovalRequestController extends Controller
 
         $step = $this->currentStep($approvalRequest);
 
+        $this->requirePapersHere($approvalRequest, $step);
+
         abort_unless(
             $step->status === ApprovalRequestStep::STATUS_APPROVED,
             422,
-            'Approve this step before forwarding it.'
+            'Approve this step before releasing the papers.'
         );
 
-        // Computed before validating so the received-by rule can be conditional:
-        // when the chain completes there is no destination office to receive
-        // anything, so nothing is asked for.
         $nextStep = $this->nextActiveStep($approvalRequest, $step);
 
         $validated = $request->validate([
-            'remarks' => ['nullable', 'string'],
-            // The contact receiving the papers at the destination office, typed
-            // by ICT (PRD §0 — never the acting account's name).
-            'received_by_name' => [Rule::requiredIf($nextStep !== null), 'nullable', 'string', 'max:255'],
             // The person releasing the papers from this office, typed by ICT
-            // (PRD §0 — never the acting account's name). Optional in the API so
-            // existing callers keep working: the trail falls back to the step's
-            // signatory when it is omitted.
+            // (PRD §0 - never the acting account's name). Optional in the API so
+            // a release can still be recorded when nobody was named; the trail
+            // then falls back to the step's signatory.
             'sent_by_name' => ['nullable', 'string', 'max:255'],
         ]);
 
         DB::transaction(function () use ($approvalRequest, $step, $nextStep, $validated, $request): void {
-            $step->update([
-                'status' => ApprovalRequestStep::STATUS_FORWARDED,
-                // "Sent" is its own event with its own person and moment, so the
-                // audit trail can show an approval date and a release date
-                // separately instead of collapsing them into acted_at.
-                'forwarded_by_name' => $validated['sent_by_name'] ?? null,
-                'forwarded_at' => now(),
-                'remarks' => $validated['remarks'] ?? $step->remarks,
-            ]);
+            ApprovalChain::markReleased($step, $validated['sent_by_name'] ?? null);
 
             AuditTrail::record(
                 user: $request->user(),
@@ -216,7 +254,6 @@ class ApprovalRequestController extends Controller
                 newValues: [
                     'current_office' => $nextStep?->office->name ?? 'Chain completed',
                     'sent_by' => $validated['sent_by_name'] ?? $step->approved_by_name,
-                    'received_by' => $nextStep !== null ? $validated['received_by_name'] : null,
                 ],
                 description: $nextStep === null
                     ? 'Closed the approval chain for "'.$approvalRequest->subscription->name.'" at "'.$step->office->name.'"'
@@ -232,12 +269,6 @@ class ApprovalRequestController extends Controller
                 return;
             }
 
-            $nextStep->update([
-                'status' => ApprovalRequestStep::STATUS_RECEIVED,
-                'received_by_name' => $validated['received_by_name'],
-                'received_at' => now(),
-            ]);
-
             $approvalRequest->update(['current_office_id' => $nextStep->office_id]);
         });
 
@@ -248,8 +279,8 @@ class ApprovalRequestController extends Controller
     }
 
     /**
-     * Send the request back. Remarks explaining the return are mandatory and
-     * the chain stops until the requesting office acts again.
+     * Send the request back: the chain stops until the requesting office acts
+     * again.
      */
     public function return(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
     {
@@ -258,7 +289,6 @@ class ApprovalRequestController extends Controller
         $this->requireInProgress($approvalRequest);
 
         $validated = $request->validate([
-            'remarks' => ['required', 'string'],
             // The office's decision-maker who sent it back, typed by ICT
             // (PRD §0). Same column as approve; the trail labels it "Returned by".
             'approved_by_name' => ['required', 'string', 'max:255'],
@@ -274,14 +304,12 @@ class ApprovalRequestController extends Controller
                 'acted_by' => $request->user()->id,
                 'approved_by_name' => $validated['approved_by_name'],
                 'acted_at' => now(),
-                'remarks' => $validated['remarks'],
             ]);
 
             // The request itself is closed as returned so the queue's returned
             // tab and counts can see it without walking the steps.
             $approvalRequest->update([
                 'status' => ApprovalRequest::STATUS_RETURNED,
-                'remarks' => $validated['remarks'],
                 'decided_by' => $request->user()->id,
                 'decided_at' => now(),
             ]);
@@ -295,7 +323,6 @@ class ApprovalRequestController extends Controller
                     'step_status' => ApprovalRequestStep::STATUS_RETURNED,
                     'office' => $step->office->name,
                     'returned_by' => $validated['approved_by_name'],
-                    'remarks' => $validated['remarks'],
                 ],
                 description: 'Returned approval for "'.$approvalRequest->subscription->name.'" at "'.$step->office->name.'"',
             );
@@ -315,6 +342,23 @@ class ApprovalRequestController extends Controller
             403,
             'This approval request is no longer in progress.'
         );
+    }
+
+    /**
+     * Only the row the papers have actually reached may be written to: every
+     * office ahead of it - ignoring deactivated offices, which the runtime skips
+     * - must already have released the papers. The trail table uses the same
+     * rule to decide which row offers inputs.
+     */
+    private function requirePapersHere(ApprovalRequest $approvalRequest, ApprovalRequestStep $step): void
+    {
+        $waiting = $approvalRequest->steps()
+            ->where('step_order', '<', $step->step_order)
+            ->where('status', '!=', ApprovalRequestStep::STATUS_FORWARDED)
+            ->whereHas('office', fn (Builder $query) => $query->where('is_active', true))
+            ->exists();
+
+        abort_if($waiting, 422, 'An earlier office has not released the papers yet.');
     }
 
     /**

@@ -66,7 +66,6 @@ it('renders the approval trail from the flow snapshot', function () {
         'status' => ApprovalRequestStep::STATUS_APPROVED,
         'acted_by' => $user->id,
         'acted_at' => now(),
-        'remarks' => 'Specs verified',
     ]);
 
     $this->actingAs($user)

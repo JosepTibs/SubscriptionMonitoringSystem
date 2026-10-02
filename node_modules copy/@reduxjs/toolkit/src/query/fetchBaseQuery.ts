@@ -234,7 +234,7 @@ export function fetchBaseQuery({
       ...rest
     } = typeof arg == 'string' ? { url: arg } : arg
 
-    let config: RequestInit = {
+    const config: RequestInit = {
       ...baseFetchOptions,
       signal: timeout
         ? anySignal(api.signal, timeoutSignal(timeout))

@@ -1,6 +1,6 @@
 import Heading from '@/components/heading';
 import AppLayout from '@/layouts/app-layout';
-import { type ApprovalFlow, type BreadcrumbItem, type Office, type Owner } from '@/types';
+import { type ApprovalFlow, type BreadcrumbItem, type Owner } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import { type FormEventHandler } from 'react';
 import SubscriptionForm, { type SubscriptionFormData } from '../subscriptions/partials/subscription-form';
@@ -12,7 +12,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 interface CreateApprovalProps {
-    offices: Office[];
     owners: Owner[];
     approval_flows: ApprovalFlow[];
 }
@@ -25,7 +24,7 @@ interface CreateApprovalProps {
  * the chain completes. The status is likewise left to the server, which parks
  * the subscription in pending approval.
  */
-export default function SubmitForApproval({ offices, owners, approval_flows }: CreateApprovalProps) {
+export default function SubmitForApproval({ owners, approval_flows }: CreateApprovalProps) {
     const { data, setData, transform, post, processing, errors } = useForm<SubscriptionFormData>({
         provider: '',
         name: '',
@@ -34,10 +33,8 @@ export default function SubmitForApproval({ offices, owners, approval_flows }: C
         billing_interval_unit: 'year',
         start_date: '',
         renewal_date: '',
-        office_id: 'none',
         owner_id: 'none',
         approval_flow_id: 'none',
-        received_by_name: '',
         status: 'pending_approval',
         description: '',
     });
@@ -48,7 +45,6 @@ export default function SubmitForApproval({ offices, owners, approval_flows }: C
         transform((payload) => ({
             ...payload,
             intake_mode: 'for_approval',
-            office_id: payload.office_id === 'none' ? null : payload.office_id,
             owner_id: payload.owner_id === 'none' ? null : payload.owner_id,
             approval_flow_id: payload.approval_flow_id === 'none' ? null : payload.approval_flow_id,
             // Left empty on purpose: the dates travel with the subscription once
@@ -77,10 +73,8 @@ export default function SubmitForApproval({ offices, owners, approval_flows }: C
                     processing={processing}
                     submitLabel="Submit for Approval"
                     onSubmit={submit}
-                    offices={offices}
                     owners={owners}
                     approvalFlows={approval_flows}
-                    showReceivedBy
                     showDates={false}
                     showStatus={false}
                 />
