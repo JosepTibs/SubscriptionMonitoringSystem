@@ -1,5 +1,6 @@
 import ApprovalCompletedBanner from '@/components/approval-completed-banner';
 import ApprovalTrailTable from '@/components/approval-trail-table';
+import { confirmRequest } from '@/components/confirm-dialog';
 import RenewalReviewSheet from '@/components/renewal-review-sheet';
 import StatusBadge from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
@@ -100,8 +101,14 @@ export default function ShowSubscription({
         setIsEditing(false);
     };
 
-    const cancel = () => {
-        if (window.confirm(`Cancel "${subscription.name}"? Its status will be set to cancelled.`)) {
+    const cancel = async () => {
+        const ok = await confirmRequest({
+            title: `Cancel "${subscription.name}"?`,
+            description: 'Its status will be set to cancelled. This cannot be undone.',
+            confirmLabel: 'Cancel subscription',
+        });
+
+        if (ok) {
             patch(route('subscriptions.cancel', subscription.id));
         }
     };

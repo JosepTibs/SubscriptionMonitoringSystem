@@ -157,7 +157,7 @@ class ActivityLogsController extends Controller
             ->values();
 
         // Manual pagination
-        $perPage = 20;
+        $perPage = 50;
         $currentPage = $request->input('page', 1);
         $total = $mergedActivities->count();
         $lastPage = max(1, (int) ceil($total / $perPage));
@@ -186,53 +186,5 @@ class ActivityLogsController extends Controller
             'subjectTypes' => $subjectTypes,
             'filters' => $request->only(['user_id', 'event', 'subject_type', 'date_from', 'date_to', 'search']),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(activity_logs $activity_logs)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(activity_logs $activity_logs)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, activity_logs $activity_logs)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(activity_logs $activity_logs)
-    {
-        //
     }
 }

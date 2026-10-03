@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { confirmRequest } from '@/components/confirm-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type Office } from '@/types';
 import { Link, router } from '@inertiajs/react';
@@ -16,13 +17,19 @@ interface OfficesTableProps {
 export default function OfficesTable({ offices, onCreate, onEdit }: OfficesTableProps) {
     const activeOffices = offices.filter((office) => office.is_active);
 
-    const toggleActive = (office: Office) => {
+    const toggleActive = async (office: Office) => {
         if (!office.is_active) {
             router.patch(route('offices.toggle-active', office.id));
             return;
         }
 
-        if (window.confirm(`Deactivate "${office.name}"? It will be skipped in future renewal forwards; existing history is preserved.`)) {
+        const ok = await confirmRequest({
+            title: `Deactivate "${office.name}"?`,
+            description: 'It will be skipped in future renewal forwards; existing history is preserved.',
+            confirmLabel: 'Deactivate',
+        });
+
+        if (ok) {
             router.patch(route('offices.toggle-active', office.id));
         }
     };

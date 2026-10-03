@@ -1,5 +1,0 @@
-resources/js/pages/subscriptions/edit.tsx(24,9): error TS2353: Object literal may only specify known properties, and 'office_id' does not exist in type 'SubscriptionFormData | (() => SubscriptionFormData)'.
-resources/js/pages/subscriptions/edit.tsx(36,32): error TS2339: Property 'office_id' does not exist on type 'SubscriptionFormData'.
-resources/js/pages/subscriptions/edit.tsx(36,70): error TS2339: Property 'office_id' does not exist on type 'SubscriptionFormData'.
-resources/js/pages/subscriptions/edit.tsx(65,21): error TS2322: Type '{ data: SubscriptionFormData; setData: SetDataAction<SubscriptionFormData>; errors: FormDataErrors<SubscriptionFormData>; ... 7 more ...; datesRequired: boolean; }' is not assignable to type 'IntrinsicAttributes & SubscriptionFormProps'.
-  Property 'offices' does not exist on type 'IntrinsicAttributes & SubscriptionFormProps'.

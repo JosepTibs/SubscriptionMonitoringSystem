@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Database\Factories\OfficeFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Office extends Model
 {
     /** @use HasFactory<OfficeFactory> */
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $fillable = [
         'name',

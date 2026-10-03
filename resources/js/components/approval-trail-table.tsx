@@ -1,4 +1,5 @@
 import { orderedSteps, StepIcon, stateStyles, trailStepState, type TrailStepState } from '@/components/approval-stepper';
+import { confirmRequest } from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -392,8 +393,14 @@ export default function ApprovalTrailTable({ request }: { request: ApprovalReque
         });
     };
 
-    const eraseRow = (step: ApprovalRequestStep) => {
-        if (!window.confirm(`Erase the row for "${step.office?.name ?? 'removed office'}"? It has not been actioned, so only the row is lost.`)) {
+    const eraseRow = async (step: ApprovalRequestStep) => {
+        const ok = await confirmRequest({
+            title: `Erase the row for "${step.office?.name ?? 'removed office'}"?`,
+            description: 'It has not been actioned, so only the row is lost. This cannot be undone.',
+            confirmLabel: 'Erase row',
+        });
+
+        if (!ok) {
             return;
         }
         router.delete(route('approval-request-steps.destroy', step.id), { preserveScroll: true });

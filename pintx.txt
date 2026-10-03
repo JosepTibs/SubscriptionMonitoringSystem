@@ -1,7 +1,0 @@
-
-  ✓.
-
-  ──────────────────────────────────────────────────────────────────────────────────────────────────────────── Laravel  
-    FIXED   ............................................................................. 2 files, 1 style issue fixed  
-  ✓ app\Http\Controllers\ApprovalRequestController.php                                     no_whitespace_in_blank_line  
-
