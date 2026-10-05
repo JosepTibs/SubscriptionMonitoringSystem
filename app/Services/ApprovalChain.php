@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Mail\ApprovalCompletedMail;
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalFlowStep;
 use App\Models\ApprovalRequest;
@@ -168,6 +169,12 @@ class ApprovalChain
                 description: 'Approval chain completed for "'.$subscription->name.'"',
             );
         });
+
+        // Mailed after the close-out rather than inside the transaction, so a
+        // chain that never durably completes never tells anyone it did. The
+        // mailable is queued on the database driver, so the job row rides the
+        // caller's transaction and rolls back with it if that one fails.
+        AdminNotifier::notifyAdmins(new ApprovalCompletedMail($request));
     }
 
     /**

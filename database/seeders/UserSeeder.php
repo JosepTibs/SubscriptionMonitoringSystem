@@ -43,10 +43,10 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         foreach (self::ACCOUNTS as $account) {
-                    
+
             $user = User::updateOrCreate(
                 [
-                    
+
                     'username' => $account['username'],
                     'fname' => $account['fname'],
                     'lname' => $account['lname'],
