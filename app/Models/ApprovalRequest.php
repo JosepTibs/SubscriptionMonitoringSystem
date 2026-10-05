@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Archivable;
 use App\Traits\LogsActivity;
 use Database\Factories\ApprovalRequestFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ApprovalRequest extends Model
 {
     /** @use HasFactory<ApprovalRequestFactory> */
-    use HasFactory, LogsActivity;
+    use Archivable, HasFactory, LogsActivity;
 
     public const TYPE_PROCUREMENT = 'procurement';
 
@@ -34,6 +35,7 @@ class ApprovalRequest extends Model
         'approval_flow_id',
         'current_office_id',
         'status',
+        'archived_at',
         'decided_by',
         'decided_at',
     ];

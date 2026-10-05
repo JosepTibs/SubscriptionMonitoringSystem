@@ -50,6 +50,18 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Archived accounts stay in the database for history but can no longer
+        // sign in — including via a remembered session.
+        if (Auth::user()?->isArchived()) {
+            Auth::logout();
+
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => 'This account has been archived. Ask an administrator to restore it.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

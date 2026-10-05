@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Archivable;
 use App\Traits\LogsActivity;
 use Database\Factories\SubscriptionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Subscription extends Model
 {
     /** @use HasFactory<SubscriptionFactory> */
-    use HasFactory, LogsActivity;
+    use Archivable, HasFactory, LogsActivity;
 
     protected $fillable =
         [
@@ -26,6 +27,7 @@ class Subscription extends Model
             'office_id',
             'owner_id',
             'status',
+            'archived_at',
             'approval_flow_id',
             'description',
         ];

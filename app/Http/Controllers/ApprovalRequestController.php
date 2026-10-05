@@ -43,7 +43,10 @@ class ApprovalRequestController extends Controller
             ? $request->status
             : ApprovalRequest::STATUS_IN_PROGRESS;
 
+        $show = $request->input('show', 'active');
+
         $requests = ApprovalRequest::query()
+            ->when($show === 'archived', fn (Builder $query) => $query->archived(), fn (Builder $query) => $query->notArchived())
             ->with([
                 'subscription.office',
                 'subscription.owner',
@@ -73,15 +76,18 @@ class ApprovalRequestController extends Controller
             // are the remaining option sets the shared form needs.
             'owners' => Owner::query()->orderBy('name')->get(),
             'approval_flows' => ApprovalFlow::query()->orderBy('name')->get(),
-            'filters' => $request->only(['status', 'type', 'office_id']),
+            'filters' => [...$request->only(['status', 'type', 'office_id']), 'show' => $show],
             'counts' => [
                 'in_progress' => ApprovalRequest::query()
+                    ->notArchived()
                     ->where('status', ApprovalRequest::STATUS_IN_PROGRESS)
                     ->count(),
                 'completed' => ApprovalRequest::query()
+                    ->notArchived()
                     ->where('status', ApprovalRequest::STATUS_COMPLETED)
                     ->count(),
                 'returned' => ApprovalRequest::query()
+                    ->notArchived()
                     ->where('status', ApprovalRequest::STATUS_RETURNED)
                     ->count(),
             ],
@@ -343,6 +349,90 @@ class ApprovalRequestController extends Controller
             403,
             'This approval request is no longer in progress.'
         );
+    }
+
+    /**
+     * Archiving and deleting chains is an administrative act: the regular ICT
+     * encoder moves papers but never hides or erases a recorded chain.
+     */
+    private function requireChainManager(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user !== null && ($user->hasRole('admin') || $user->hasRole('superadmin')),
+            403,
+            'Only an administrator can archive or delete an approval request.'
+        );
+    }
+
+    /**
+     * Hide a chain from the normal queue without deleting it.
+     */
+    public function archive(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
+    {
+        $this->requireChainManager($request);
+
+        $approvalRequest->archive();
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Approval Archived',
+            auditable: $approvalRequest->subscription,
+            newValues: ['approval_request_id' => $approvalRequest->id],
+            description: 'Archived approval request #'.$approvalRequest->id.' for "'.$approvalRequest->subscription->name.'"',
+        );
+
+        return back()->with('success', 'Approval request archived.');
+    }
+
+    /**
+     * Show an archived chain in the normal queue again.
+     */
+    public function unarchive(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
+    {
+        $this->requireChainManager($request);
+
+        $approvalRequest->unarchive();
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Approval Unarchived',
+            auditable: $approvalRequest->subscription,
+            newValues: ['approval_request_id' => $approvalRequest->id],
+            description: 'Unarchived approval request #'.$approvalRequest->id.' for "'.$approvalRequest->subscription->name.'"',
+        );
+
+        return back()->with('success', 'Approval request unarchived.');
+    }
+
+    /**
+     * Permanently erase a finished chain and its snapshot steps. A live chain
+     * can only be archived — deleting it would orphan papers in transit.
+     */
+    public function destroy(Request $request, ApprovalRequest $approvalRequest): RedirectResponse
+    {
+        $this->requireChainManager($request);
+
+        abort_if(
+            $approvalRequest->status === ApprovalRequest::STATUS_IN_PROGRESS,
+            422,
+            'Only a finished approval request can be deleted. Archive it while it is still travelling.'
+        );
+
+        $subscription = $approvalRequest->subscription;
+
+        $approvalRequest->delete();
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Approval Deleted',
+            auditable: $subscription,
+            oldValues: ['approval_request_id' => $approvalRequest->id],
+            description: 'Deleted approval request #'.$approvalRequest->id.' for "'.$subscription->name.'"',
+        );
+
+        return back()->with('success', 'Approval request deleted permanently.');
     }
 
     /**

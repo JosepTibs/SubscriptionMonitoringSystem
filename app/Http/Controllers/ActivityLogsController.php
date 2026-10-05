@@ -16,6 +16,8 @@ class ActivityLogsController extends Controller
      */
     public function index(Request $request)
     {
+        $this->requireActivityLogViewer($request);
+
         // Build query for general activity logs
         $generalQuery = activity_logs::with('user:id,username,fname,mname,lname,sname');
 
@@ -186,5 +188,20 @@ class ActivityLogsController extends Controller
             'subjectTypes' => $subjectTypes,
             'filters' => $request->only(['user_id', 'event', 'subject_type', 'date_from', 'date_to', 'search']),
         ]);
+    }
+
+    /**
+     * The trail names the account behind every recorded change, so reading it
+     * is an administrative act - the same gate archiving and deleting use.
+     */
+    private function requireActivityLogViewer(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user !== null && ($user->hasRole('admin') || $user->hasRole('superadmin')),
+            403,
+            'Only an administrator can view the activity logs.'
+        );
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Traits\Archivable;
 use App\Traits\LogsActivity;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,7 +14,7 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, LogsActivity, Notifiable;
+    use Archivable, HasFactory, LogsActivity, Notifiable;
 
     /**
      * The accessors to append to the model's array form.
@@ -36,6 +37,7 @@ class User extends Authenticatable
         'email',
         'email_verified_at',
         'password',
+        'archived_at',
     ];
 
     /**

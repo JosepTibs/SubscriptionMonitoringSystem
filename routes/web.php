@@ -18,14 +18,20 @@ Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('activity-logs', [ActivityLogsController::class, 'index'])->name('activity-logs.index');
     Route::resource('users', UserController::class);
+    Route::patch('users/{user}/archive', [UserController::class, 'archive'])->name('users.archive');
+    Route::patch('users/{user}/unarchive', [UserController::class, 'unarchive'])->name('users.unarchive');
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
 
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
 
-    Route::resource('subscriptions', SubscriptionController::class)->except(['destroy']);
+    Route::resource('subscriptions', SubscriptionController::class);
 
     Route::patch('subscriptions/{subscription}/cancel', [SubscriptionController::class, 'cancel'])
         ->name('subscriptions.cancel');
+    Route::patch('subscriptions/{subscription}/archive', [SubscriptionController::class, 'archive'])
+        ->name('subscriptions.archive');
+    Route::patch('subscriptions/{subscription}/unarchive', [SubscriptionController::class, 'unarchive'])
+        ->name('subscriptions.unarchive');
 
     Route::post('subscriptions/{subscription}/renewals', [RenewalsController::class, 'store'])
         ->name('subscriptions.renewals.store');
@@ -41,6 +47,12 @@ Route::middleware(['auth'])->group(function () {
         ->name('approval-requests.forward');
     Route::patch('approval-requests/{approval_request}/return', [ApprovalRequestController::class, 'return'])
         ->name('approval-requests.return');
+    Route::patch('approval-requests/{approval_request}/archive', [ApprovalRequestController::class, 'archive'])
+        ->name('approval-requests.archive');
+    Route::patch('approval-requests/{approval_request}/unarchive', [ApprovalRequestController::class, 'unarchive'])
+        ->name('approval-requests.unarchive');
+    Route::delete('approval-requests/{approval_request}', [ApprovalRequestController::class, 'destroy'])
+        ->name('approval-requests.destroy');
 
     // Administrative corrections to an already-recorded trail row. The runtime
     // stamps its own dates, so this is the only path that may change them.

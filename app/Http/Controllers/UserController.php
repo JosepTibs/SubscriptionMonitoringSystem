@@ -16,8 +16,10 @@ class UserController extends Controller
     {
         $search = $request->input('search');
         $roleFilter = $request->input('role');
+        $show = $request->input('show', 'active');
 
         $users = User::query()
+            ->when($show === 'archived', fn ($query) => $query->archived(), fn ($query) => $query->notArchived())
             ->with('roles')
             ->orderBy('created_at', 'desc')
             ->get()
@@ -32,6 +34,7 @@ class UserController extends Controller
                     'email' => $user->email,
                     'email_verified_at' => $user->email_verified_at,
                     'role' => $user->roles->first()?->only(['id', 'name']),
+                    'is_archived' => $user->isArchived(),
                     'created_at' => $user->created_at->format('Y-m-d'),
                 ];
             });
@@ -44,6 +47,7 @@ class UserController extends Controller
             'filters' => [
                 'search' => $search,
                 'role' => $roleFilter,
+                'show' => $show,
             ],
         ]);
     }
@@ -228,8 +232,70 @@ class UserController extends Controller
         $user->unsetRelation('roles');
     }
 
+    /**
+     * Hiding a user revokes access without erasing history; deleting erases
+     * the account. Both are restricted to administrators, and the existing
+     * self-delete and Superadmin guards apply to deletes.
+     */
+    private function requireUserManager(): void
+    {
+        $user = auth()->user();
+
+        abort_unless(
+            $user !== null && ($user->hasRole('admin') || $user->hasRole('superadmin')),
+            403,
+            'Only an administrator can archive or delete a user.'
+        );
+    }
+
+    /**
+     * Hide a user from the normal list and block their login.
+     */
+    public function archive(User $user)
+    {
+        $this->requireUserManager();
+
+        // Archiving yourself would lock you out of the admin screens.
+        if ($user->id === auth()->id()) {
+            return redirect()->route('users.index')->with('error', 'You cannot archive your own account.');
+        }
+
+        $user->archive();
+
+        AuditTrail::record(
+            user: auth()->user(),
+            action: 'User Archived',
+            auditable: $user,
+            newValues: ['archived_at' => $user->archived_at?->toDateTimeString()],
+            description: 'Archived user "'.$user->username.'"',
+        );
+
+        return redirect()->route('users.index')->with('success', 'User archived successfully.');
+    }
+
+    /**
+     * Show an archived user in the normal list and restore their login.
+     */
+    public function unarchive(User $user)
+    {
+        $this->requireUserManager();
+
+        $user->unarchive();
+
+        AuditTrail::record(
+            user: auth()->user(),
+            action: 'User Unarchived',
+            auditable: $user,
+            newValues: ['archived_at' => null],
+            description: 'Unarchived user "'.$user->username.'"',
+        );
+
+        return redirect()->route('users.index')->with('success', 'User unarchived successfully.');
+    }
+
     public function destroy(User $user)
     {
+        $this->requireUserManager();
 
         // Prevent deleting yourself
         if ($user->id === auth()->id()) {

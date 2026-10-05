@@ -4,6 +4,10 @@ export interface Auth {
     user: User;
     /** Whether this account may correct or erase recorded trail entries. */
     can_edit_trail: boolean;
+    /** Whether this account may archive, unarchive or delete records. */
+    can_manage_records: boolean;
+    /** Role names as the roles table stores them, lowercased (e.g. "admin"). */
+    roles: string[];
 }
 
 export interface BreadcrumbItem {
@@ -21,6 +25,8 @@ export interface NavItem {
     url: string;
     icon?: LucideIcon | null;
     isActive?: boolean;
+    /** Roles allowed to see this item. Omitted means every signed-in account. */
+    roles?: string[];
 }
 
 export interface SharedData {

@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\ApprovalChain;
 use App\Services\AuditTrail;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -24,11 +25,13 @@ class SubscriptionController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $today = Carbon::today();
+        $show = $request->input('show', 'active');
 
         $subscriptions = Subscription::query()
+            ->when($show === 'archived', fn (Builder $query) => $query->archived(), fn (Builder $query) => $query->notArchived())
             ->where('status', 'not like', '%pending%')
             ->with('office', 'owner')
             // Subscriptions still travelling an approval chain carry no dates
@@ -44,6 +47,7 @@ class SubscriptionController extends Controller
 
         return Inertia::render('subscriptions/index', [
             'subscriptions' => $subscriptions,
+            'filters' => ['show' => $show],
             // The create sheet renders the shared subscription form, so the
             // list needs the same option sets the create page was given.
             ...$this->formOptions(),
@@ -231,6 +235,91 @@ class SubscriptionController extends Controller
         );
 
         return to_route('subscriptions.show', $subscription);
+    }
+
+    /**
+     * Hiding or erasing a subscription is an administrative act: the regular
+     * ICT encoder records renewals but never hides or erases a subscription.
+     */
+    private function requireSubscriptionManager(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user !== null && ($user->hasRole('admin') || $user->hasRole('superadmin')),
+            403,
+            'Only an administrator can archive or delete a subscription.'
+        );
+    }
+
+    /**
+     * Hide a subscription from the normal list without deleting it.
+     */
+    public function archive(Request $request, Subscription $subscription): RedirectResponse
+    {
+        $this->requireSubscriptionManager($request);
+
+        $subscription->archive();
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Subscription Archived',
+            auditable: $subscription,
+            newValues: ['archived_at' => $subscription->archived_at?->toDateTimeString()],
+            description: 'Archived subscription "'.$subscription->name.'"',
+        );
+
+        return back()->with('success', 'Subscription archived.');
+    }
+
+    /**
+     * Show an archived subscription in the normal list again.
+     */
+    public function unarchive(Request $request, Subscription $subscription): RedirectResponse
+    {
+        $this->requireSubscriptionManager($request);
+
+        $subscription->unarchive();
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Subscription Unarchived',
+            auditable: $subscription,
+            newValues: ['archived_at' => null],
+            description: 'Unarchived subscription "'.$subscription->name.'"',
+        );
+
+        return back()->with('success', 'Subscription unarchived.');
+    }
+
+    /**
+     * Permanently erase a subscription with its renewals and approval history.
+     * A subscription with a live chain can only be archived — deleting it
+     * would orphan papers in transit.
+     */
+    public function destroy(Request $request, Subscription $subscription): RedirectResponse
+    {
+        $this->requireSubscriptionManager($request);
+
+        abort_if(
+            $subscription->approvalRequests()->where('status', ApprovalRequest::STATUS_IN_PROGRESS)->exists(),
+            422,
+            'This subscription has an approval request still travelling. Archive it instead of deleting.'
+        );
+
+        $name = $subscription->name;
+
+        $subscription->delete();
+
+        AuditTrail::record(
+            user: $request->user(),
+            action: 'Subscription Deleted',
+            auditable: null,
+            oldValues: ['subscription_id' => $subscription->id, 'name' => $name],
+            description: 'Deleted subscription "'.$name.'"',
+        );
+
+        return to_route('subscriptions.index')->with('success', 'Subscription deleted permanently.');
     }
 
     /**

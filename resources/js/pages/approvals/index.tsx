@@ -1,3 +1,4 @@
+import { confirmRequest } from '@/components/confirm-dialog';
 import ApprovalActions from '@/components/approval-actions';
 import ApprovalStepper from '@/components/approval-stepper';
 import CreateSubscriptionSheet from '@/components/create-subscription-sheet';
@@ -8,8 +9,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
-import { type ApprovalFlow, type ApprovalRequest, type BreadcrumbItem, type Office, type Owner } from '@/types';
-import { Head, Link, router } from '@inertiajs/react';
+import { type ApprovalFlow, type ApprovalRequest, type BreadcrumbItem, type Office, type Owner, type SharedData } from '@/types';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -53,7 +55,7 @@ interface ApprovalsIndexProps extends Record<string, unknown> {
     offices: Office[];
     owners: Owner[];
     approval_flows: ApprovalFlow[];
-    filters: { status?: string; type?: string; office_id?: string };
+    filters: { status?: string; type?: string; office_id?: string; show?: string };
     counts: { in_progress: number; completed: number; returned: number };
 }
 
@@ -68,6 +70,9 @@ function waitingLabel(request: ApprovalRequest): string {
 }
 
 export default function ApprovalsIndex({ requests, offices, owners, approval_flows, filters, counts }: ApprovalsIndexProps) {
+    const { auth } = usePage<SharedData>().props;
+    const canManage = auth.can_manage_records;
+    const archivedView = filters.show === 'archived';
     const [status, setStatus] = useState(filters.status && filters.status !== allValue ? filters.status : 'in_progress');
     const [type, setType] = useState(filters.type && filters.type !== allValue ? filters.type : allValue);
     const [officeId, setOfficeId] = useState(filters.office_id && filters.office_id !== allValue ? String(filters.office_id) : allValue);
@@ -82,13 +87,14 @@ export default function ApprovalsIndex({ requests, offices, owners, approval_flo
      * The parameter is typed to those three keys so a stray query name such as
      * `office_id` cannot slip in and set a key nothing ever reads.
      */
-    const applyFilters = (patch: Partial<Record<'status' | 'type' | 'officeId', string>> = {}) => {
-        const next = { status, type, officeId, ...patch };
+    const applyFilters = (patch: Partial<Record<'status' | 'type' | 'officeId' | 'show', string>> = {}) => {
+        const next = { status, type, officeId, show: archivedView ? 'archived' : allValue, ...patch };
 
         const params: Record<string, string> = {
             ...(next.status !== '' && next.status !== allValue ? { status: next.status } : {}),
             ...(next.type !== '' && next.type !== allValue ? { type: next.type } : {}),
             ...(next.officeId !== '' && next.officeId !== allValue ? { office_id: next.officeId } : {}),
+            ...(next.show === 'archived' ? { show: 'archived' } : {}),
         };
 
         router.get(route('approvals.index'), params, {
@@ -104,8 +110,50 @@ export default function ApprovalsIndex({ requests, offices, owners, approval_flo
         setType(allValue);
         setOfficeId(allValue);
 
-        router.get(route('approvals.index'), {}, { only: ['requests', 'filters'], preserveState: true, preserveScroll: true, replace: true });
+        router.get(
+            route('approvals.index'),
+            archivedView ? { show: 'archived' } : {},
+            { only: ['requests', 'filters'], preserveState: true, preserveScroll: true, replace: true },
+        );
     };
+
+    async function handleArchive(request: ApprovalRequest) {
+        const ok = await confirmRequest({
+            title: `Archive request #${request.id}?`,
+            description: 'It will be hidden from the queue. You can bring it back from the Archived view.',
+            confirmLabel: 'Archive',
+            destructive: false,
+        });
+
+        if (ok) {
+            router.patch(route('approval-requests.archive', request.id), {}, { preserveScroll: true });
+        }
+    }
+
+    async function handleUnarchive(request: ApprovalRequest) {
+        const ok = await confirmRequest({
+            title: `Unarchive request #${request.id}?`,
+            description: 'It will show in the queue again.',
+            confirmLabel: 'Unarchive',
+            destructive: false,
+        });
+
+        if (ok) {
+            router.patch(route('approval-requests.unarchive', request.id), {}, { preserveScroll: true });
+        }
+    }
+
+    async function handleDelete(request: ApprovalRequest) {
+        const ok = await confirmRequest({
+            title: `Delete request #${request.id}?`,
+            description: 'This permanently erases the chain and its snapshot steps. This action cannot be undone.',
+            confirmLabel: 'Delete request',
+        });
+
+        if (ok) {
+            router.delete(route('approval-requests.destroy', request.id), { preserveScroll: true });
+        }
+    }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -178,6 +226,19 @@ export default function ApprovalsIndex({ requests, offices, owners, approval_flo
                                 </SelectContent>
                             </Select>
 
+                            <Select
+                                value={archivedView ? 'archived' : allValue}
+                                onValueChange={(value) => applyFilters({ show: value })}
+                            >
+                                <SelectTrigger className="w-36" aria-label="Archived filter">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={allValue}>Active</SelectItem>
+                                    <SelectItem value="archived">Archived</SelectItem>
+                                </SelectContent>
+                            </Select>
+
                             <Button variant="ghost" onClick={resetFilters}>
                                 Reset
                             </Button>
@@ -191,7 +252,7 @@ export default function ApprovalsIndex({ requests, offices, owners, approval_flo
                                     <TableHead>Chain</TableHead>
                                     <TableHead>Current office</TableHead>
                                     <TableHead className="text-center">Waiting</TableHead>
-                                    
+                                    {canManage && <TableHead className="text-right">Actions</TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -229,6 +290,35 @@ export default function ApprovalsIndex({ requests, offices, owners, approval_flo
                                                 {request.flow && <div className="text-muted-foreground text-xs">{request.flow.name}</div>}
                                             </TableCell>
                                             <TableCell className="text-center">{waitingLabel(request)}</TableCell>
+                                            {canManage && (
+                                                <TableCell>
+                                                    <div className="flex justify-end gap-2">
+                                                        {archivedView ? (
+                                                            <Button variant="outline" size="sm" onClick={() => handleUnarchive(request)}>
+                                                                <ArchiveRestore className="h-4 w-4" />
+                                                            </Button>
+                                                        ) : (
+                                                            <Button variant="outline" size="sm" onClick={() => handleArchive(request)}>
+                                                                <Archive className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="text-red-600 hover:text-red-700"
+                                                            onClick={() => handleDelete(request)}
+                                                            disabled={request.status === 'in_progress' && !archivedView}
+                                                            title={
+                                                                request.status === 'in_progress' && !archivedView
+                                                                    ? 'Archive a travelling request instead of deleting it'
+                                                                    : `Delete request #${request.id}`
+                                                            }
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            )}
                                         </TableRow>
                                     ))
                                 )}

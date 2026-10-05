@@ -24,7 +24,7 @@ import {
     type FilterFn,
     type SortingState,
 } from '@tanstack/react-table';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Archive, ArchiveRestore, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -49,6 +49,7 @@ interface UserItem {
     email: string;
     email_verified_at: string | null;
     role: { id: number; name: string } | null;
+    is_archived: boolean;
     created_at: string;
 }
 
@@ -58,6 +59,7 @@ interface UsersPageProps extends Record<string, unknown> {
     filters: {
         search: string | null;
         role: string | null;
+        show: string | null;
     };
     auth?: {
         user?: {
@@ -66,6 +68,7 @@ interface UsersPageProps extends Record<string, unknown> {
             email: string;
         } | null;
         roles?: string[];
+        can_manage_records?: boolean;
     };
 }
 
@@ -112,7 +115,8 @@ const columnHelper = createColumnHelper<typeof features, UserItem>();
 
 export default function UsersIndex() {
     const { users, roles, filters, auth } = usePage<UsersPageProps>().props;
-    const canDeleteUsers = auth?.roles?.includes('superadmin') ?? false;
+    const canManage = auth?.can_manage_records ?? auth?.roles?.includes('superadmin') ?? false;
+    const archivedView = filters.show === 'archived';
     const [globalFilter, setGlobalFilter] = useState(filters.search ?? '');
     const [roleFilter, setRoleFilter] = useState(filters.role ?? '');
     const [sorting, setSorting] = useState<SortingState>([]);
@@ -251,7 +255,21 @@ export default function UsersIndex() {
                                         <Pencil className="h-4 w-4" />
                                     </Button>
                                 </Link>
-                                {canDeleteUsers && (
+                                {canManage && archivedView && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleUnarchive(user.id, formatFullName(user))}
+                                    >
+                                        <ArchiveRestore className="h-4 w-4" />
+                                    </Button>
+                                )}
+                                {canManage && !archivedView && (
+                                    <Button variant="outline" size="sm" onClick={() => handleArchive(user.id, formatFullName(user))}>
+                                        <Archive className="h-4 w-4" />
+                                    </Button>
+                                )}
+                                {canManage && (
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -266,7 +284,7 @@ export default function UsersIndex() {
                     },
                 }),
             ]),
-        [],
+        [canManage, archivedView],
     );
 
     const table = useTable({
@@ -287,6 +305,32 @@ export default function UsersIndex() {
             },
         },
     });
+
+    async function handleArchive(userId: number, userName: string) {
+        const ok = await confirmRequest({
+            title: `Archive "${userName}"?`,
+            description: 'The account will be hidden from this list and can no longer sign in. History is kept.',
+            confirmLabel: 'Archive user',
+            destructive: false,
+        });
+
+        if (ok) {
+            router.patch(`/users/${userId}/archive`, {}, { preserveScroll: true });
+        }
+    }
+
+    async function handleUnarchive(userId: number, userName: string) {
+        const ok = await confirmRequest({
+            title: `Unarchive "${userName}"?`,
+            description: 'The account will show in the active list and can sign in again.',
+            confirmLabel: 'Unarchive user',
+            destructive: false,
+        });
+
+        if (ok) {
+            router.patch(`/users/${userId}/unarchive`, {}, { preserveScroll: true });
+        }
+    }
 
     async function handleDelete(userId: number, userName: string) {
         const ok = await confirmRequest({
@@ -347,6 +391,26 @@ export default function UsersIndex() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            <div className="w-full sm:w-36">
+                                <Select
+                                    value={archivedView ? 'archived' : 'active'}
+                                    onValueChange={(value) =>
+                                        router.get(
+                                            '/users',
+                                            value === 'archived' ? { show: 'archived' } : {},
+                                            { preserveState: true, preserveScroll: true, replace: true },
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger aria-label="Archived filter">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="active">Active</SelectItem>
+                                        <SelectItem value="archived">Archived</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -354,7 +418,9 @@ export default function UsersIndex() {
                 {/* Users Table */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg">All Users ({filteredData.length})</CardTitle>
+                        <CardTitle className="text-lg">
+                            {archivedView ? 'Archived Users' : 'All Users'} ({filteredData.length})
+                        </CardTitle>
                     </CardHeader>
                     <CardContent>
                         {table.getRowModel().rows.length > 0 ? (
