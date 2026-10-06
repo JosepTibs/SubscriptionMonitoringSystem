@@ -7,17 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { billingIntervalLabel, formatDate, formatPeso } from '@/lib/format';
+import { billingIntervalLabel, formatDate, formatPeso, toDateInputValue } from '@/lib/format';
 import { type ApprovalFlow, type ApprovalRequest, type BreadcrumbItem, type Owner, type Subscription } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Check, Pencil, X } from 'lucide-react';
+import { ArrowLeft, Check, Pencil, X } from 'lucide-react';
 import { useRef, useState, type FormEventHandler, type ReactNode } from 'react';
 import SubscriptionForm, { type SubscriptionFormData } from './partials/subscription-form';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Subscriptions', href: '/subscriptions' },
-];
+const baseBreadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: '/dashboard' }];
 
 function Detail({ label, value }: { label: string; value: ReactNode }) {
     return (
@@ -47,6 +44,17 @@ export default function ShowSubscription({
 }) {
     const [isEditing, setIsEditing] = useState(false);
 
+    // The detail page is shared: approval queue rows open the same component
+    // as the subscription list, so the way back depends on what is on screen.
+    // A subscription still travelling its chain returns to the approval queue;
+    // everything else returns to the subscription list.
+    const isFromApprovals = subscription.status === 'pending_approval';
+    const listCrumb: BreadcrumbItem = isFromApprovals
+        ? { title: 'Approvals', href: '/approvals' }
+        : { title: 'Subscriptions', href: '/subscriptions' };
+    const backHref = isFromApprovals ? route('approvals.index') : route('subscriptions.index');
+    const backLabel = isFromApprovals ? 'Back to Approvals' : 'Back to Subscriptions';
+
     // A chain that has finished leaves a procurement subscription active but
     // still dateless - the dates are recorded by hand afterwards, so the
     // reminder is derived from the record rather than flashed once. It shows
@@ -69,8 +77,8 @@ export default function ShowSubscription({
         cost: subscription.cost,
         billing_interval: String(subscription.billing_interval),
         billing_interval_unit: subscription.billing_interval_unit,
-        start_date: subscription.start_date ?? '',
-        renewal_date: subscription.renewal_date ?? '',
+        start_date: toDateInputValue(subscription.start_date),
+        renewal_date: toDateInputValue(subscription.renewal_date),
         owner_id: subscription.owner_id ? String(subscription.owner_id) : 'none',
         approval_flow_id: subscription.approval_flow_id ? String(subscription.approval_flow_id) : 'none',
         status: subscription.status,
@@ -114,10 +122,18 @@ export default function ShowSubscription({
     };
 
     return (
-        <AppLayout breadcrumbs={[...breadcrumbs, { title: subscription.name, href: route('subscriptions.show', subscription.id) }]}>
+        <AppLayout breadcrumbs={[...baseBreadcrumbs, listCrumb, { title: subscription.name, href: route('subscriptions.show', subscription.id) }]}>
             <Head title={subscription.name} />
 
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
+                <div>
+                    <Link href={backHref}>
+                        <Button variant="ghost" size="sm">
+                            <ArrowLeft className="mr-1 h-4 w-4" /> {backLabel}
+                        </Button>
+                    </Link>
+                </div>
+
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-3">

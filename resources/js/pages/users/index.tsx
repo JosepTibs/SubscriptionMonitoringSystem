@@ -121,12 +121,26 @@ export default function UsersIndex() {
     const [roleFilter, setRoleFilter] = useState(filters.role ?? '');
     const [sorting, setSorting] = useState<SortingState>([]);
     const [createOpen, setCreateOpen] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState<UserItem | null>(null);
 
     // Apply role filter to data
     const filteredData = useMemo(() => {
         if (!roleFilter || roleFilter === 'all') return users;
         return users.filter((user) => user.role?.id === Number(roleFilter));
     }, [users, roleFilter]);
+
+    const openEditSheet = useCallback((user: UserItem) => {
+        setEditingUser(user);
+        setEditOpen(true);
+    }, []);
+
+    const handleEditOpenChange = useCallback((open: boolean) => {
+        setEditOpen(open);
+        if (!open) {
+            setEditingUser(null);
+        }
+    }, []);
 
     const columns = useMemo(
         () =>
@@ -250,11 +264,11 @@ export default function UsersIndex() {
                         const user = row.original;
                         return (
                             <div className="flex justify-end gap-2">
-                                <Link href={`/users/${user.id}/edit`}>
-                                    <Button variant="outline" size="sm">
+                                {canManage && (
+                                    <Button variant="outline" size="sm" onClick={() => openEditSheet(user)}>
                                         <Pencil className="h-4 w-4" />
                                     </Button>
-                                </Link>
+                                )}
                                 {canManage && archivedView && (
                                     <Button
                                         variant="outline"
@@ -284,7 +298,7 @@ export default function UsersIndex() {
                     },
                 }),
             ]),
-        [canManage, archivedView],
+        [canManage, archivedView, openEditSheet],
     );
 
     const table = useTable({
@@ -352,6 +366,24 @@ export default function UsersIndex() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Users" />
             <CreateUserSheet open={createOpen} onOpenChange={setCreateOpen} roles={roles} />
+            {editingUser && (
+                <CreateUserSheet
+                    key={editingUser.id}
+                    open={editOpen}
+                    onOpenChange={handleEditOpenChange}
+                    roles={roles}
+                    user={{
+                        id: editingUser.id,
+                        username: editingUser.username,
+                        fname: editingUser.fname,
+                        mname: editingUser.mname,
+                        lname: editingUser.lname,
+                        sname: editingUser.sname,
+                        email: editingUser.email,
+                        role_id: editingUser.role?.id ?? null,
+                    }}
+                />
+            )}
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold">Users</h1>

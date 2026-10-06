@@ -2,6 +2,7 @@
 
 use App\Mail\ApprovalCompletedMail;
 use App\Mail\RenewalDeadlineDigestMail;
+use App\Models\ApprovalRequest;
 use App\Models\Roles;
 use App\Models\Subscription;
 use App\Models\User;
@@ -41,7 +42,7 @@ it('mails administrators once a chain is approved', function () {
     // The notifier is what complete() calls; the chain wiring itself is
     // covered by the approval chain tests.
     AdminNotifier::notifyAdmins(new ApprovalCompletedMail(
-        \App\Models\ApprovalRequest::factory()->create(),
+        ApprovalRequest::factory()->create(),
     ));
 
     Mail::assertQueued(

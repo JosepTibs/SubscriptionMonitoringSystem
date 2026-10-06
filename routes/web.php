@@ -71,7 +71,7 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('approval-flows/{approval_flow}/set-default', [ApprovalFlowController::class, 'setDefault'])
         ->name('approval-flows.set-default');
 
-    Route::get('test-mail', function(){
+    Route::get('test-mail', function () {
         $message = 'Test lang 2';
         Mail::to('josephteves472@gmail.com')->send(new SendTestEmail($message));
     });

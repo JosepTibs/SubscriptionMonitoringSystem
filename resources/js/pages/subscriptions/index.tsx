@@ -20,7 +20,7 @@ function daysRemainingLabel(subscription: Subscription): { text: string; classNa
     const days = subscription.days_until_renewal;
 
     if (days === undefined || days === null) {
-        return { text: '—', className: '' };
+        return { text: 'Not yet -', className: '' };
     }
 
     if (subscription.status === 'cancelled') {

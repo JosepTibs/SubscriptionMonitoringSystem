@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type ApprovalFlow, type Owner, type Subscription } from '@/types';
-import { type FormEventHandler, type Ref, useEffect, useState } from 'react';
+import { type FormEventHandler, type Ref, useEffect, useRef, useState } from 'react';
 
 export type SubscriptionFormData = {
     provider: string;
@@ -61,10 +61,30 @@ export default function SubscriptionForm({
     formRef,
     extra,
 }: SubscriptionFormProps) {
+    // Snapshot of the seeded schedule values. The sync below must only react
+    // to user edits after mount: a stored renewal that was deliberately set
+    // off-interval has to survive opening the form untouched.
+    const initialSyncKey = useRef<string | null>(null);
+
     useEffect(() => {
         if (!showDates || !syncRenewalDate) {
             return;
         }
+
+        const key = `${data.start_date}|${data.billing_interval}|${data.billing_interval_unit}`;
+
+        // First run just records the seeded values.
+        if (initialSyncKey.current === null) {
+            initialSyncKey.current = key;
+
+            return;
+        }
+
+        if (key === initialSyncKey.current) {
+            return;
+        }
+
+        initialSyncKey.current = key;
 
         if (data.start_date && data.billing_interval_unit === 'year') {
             const renewalDateAdd = data.billing_interval;

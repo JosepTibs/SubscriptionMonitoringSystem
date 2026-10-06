@@ -31,14 +31,16 @@
                     <th style="border: 1px solid #d1d5db;">Renewal date</th>
                     <th style="border: 1px solid #d1d5db;">Days left</th>
                     <th style="border: 1px solid #d1d5db;">Cost</th>
-                    <th style="border: 1px solid #d1d5db;">Office</th>
+                    <th style="border: 1px solid #d1d5db;">Owner</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($group['subscriptions'] as $subscription)
                     <tr>
-                        <td style="border: 1px solid #d1d5db;">
-                            {{ $subscription->name }}
+                       <td style="border: 1px solid #d1d5db;">
+                            <a href="{{ route('subscriptions.show', $subscription->id) }}">
+                                {{ $subscription->name }}
+                            </a>
                         </td>
                         <td style="border: 1px solid #d1d5db;">{{ $subscription->provider }}</td>
                         <td style="border: 1px solid #d1d5db;">
@@ -46,7 +48,7 @@
                         </td>
                         <td style="border: 1px solid #d1d5db;">{{ $subscription->days_remaining }}</td>
                         <td style="border: 1px solid #d1d5db;">{{ $subscription->cost }}</td>
-                        <td style="border: 1px solid #d1d5db;">{{ $subscription->office?->name ?? '—' }}</td>
+                        <td style="border: 1px solid #d1d5db;">{{ $subscription->owner ?? '—' }}</td>
                     </tr>
                 @endforeach
             </tbody>
