@@ -7,7 +7,7 @@ export default function AppLogo() {
                 <img src="/phccilogo-dark.png" alt="logo dark" className="hidden size-full object-contain dark:block" />
             </div>
             <div className="ml-1 grid flex-1 text-left text-sm">
-                <span className="mb-0.5 truncate leading-none font-semibold">PHCCI Project Management System</span>
+                <span className="mb-0.5 truncate leading-none font-semibold">PHCCI Subscription Monitoring System</span>
             </div>
         </>
     );

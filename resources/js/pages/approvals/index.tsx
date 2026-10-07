@@ -57,6 +57,7 @@ interface ApprovalsIndexProps extends Record<string, unknown> {
     approval_flows: ApprovalFlow[];
     filters: { status?: string; type?: string; office_id?: string; show?: string };
     counts: { in_progress: number; completed: number; returned: number };
+    request_count: number;
 }
 
 function waitingLabel(request: ApprovalRequest): string {
@@ -69,7 +70,7 @@ function waitingLabel(request: ApprovalRequest): string {
     return days === 1 ? '1 day' : `${days} days`;
 }
 
-export default function ApprovalsIndex({ requests, offices, owners, approval_flows, filters, counts }: ApprovalsIndexProps) {
+export default function ApprovalsIndex({requests, offices, owners, approval_flows, filters, counts, request_count}: ApprovalsIndexProps) {
     const { auth } = usePage<SharedData>().props;
     const canManage = auth.can_manage_records;
     const archivedView = filters.show === 'archived';
@@ -165,12 +166,14 @@ export default function ApprovalsIndex({ requests, offices, owners, approval_flo
                         title="Approvals"
                         description="Requests still travelling the chain, oldest first. Your account is not tied to an office yet, so pick an office to narrow the queue."
                     />
-
+                    
                     <CreateSubscriptionSheet mode="for_approval" owners={owners} approvalFlows={approval_flows} />
                 </div>
 
                 <Card>
+                     <h1 className= "mx-6 text-xl font-semibold"> Total Requests: {request_count}</h1>
                     <CardContent>
+                       
                         <div className="flex flex-wrap items-center gap-2 pb-4">
                             <Select
                                 value={status}
@@ -247,7 +250,7 @@ export default function ApprovalsIndex({ requests, offices, owners, approval_flo
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Subscription</TableHead>
+                                    <TableHead>Subscription {request_count}</TableHead>
                                     <TableHead>Type</TableHead>
                                     <TableHead>Chain</TableHead>
                                     <TableHead>Current office</TableHead>
@@ -274,7 +277,6 @@ export default function ApprovalsIndex({ requests, offices, owners, approval_flo
                                                 </Link>
                                                 <div className="text-muted-foreground text-sm">
                                                     {request.subscription?.provider ?? '-'}
-                                                    {request.subscription?.office ? ` - ${request.subscription.office.name}` : ''}
                                                 </div>
                                             </TableCell>
                                             <TableCell>

@@ -135,9 +135,9 @@ export interface Subscription {
     owner_id: number | null;
     approval_flow_id: number | null;
     status: 'active' | 'expired' | 'cancelled' | 'suspended' | 'pending_approval';
+    archived_at: string | null;
     approval_flow?: ApprovalFlow | null;
     description: string | null;
-    office?: Office | null;
     owner?: Owner | null;
     renewals?: Renewal[];
     approval_requests?: ApprovalRequest[];
@@ -155,3 +155,4 @@ export interface User {
     updated_at: string;
     [key: string]: unknown; // This allows for additional properties...
 }
+

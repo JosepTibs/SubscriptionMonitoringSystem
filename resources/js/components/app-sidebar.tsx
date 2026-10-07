@@ -5,8 +5,9 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { canViewNavItem } from '@/lib/roles';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ActivityIcon, BriefcaseBusiness, ClipboardCheck, CreditCard, LayoutGrid, User2 } from 'lucide-react';
+import { ActivityIcon, BriefcaseBusiness, ClipboardCheck, CreditCard, LayoutGrid, User2, Users2Icon  } from 'lucide-react';
 import AppLogo from './app-logo';
+
 
 /** Roles allowed to read the activity trail. */
 const adminRoles = ['admin', 'superadmin'];
@@ -44,7 +45,7 @@ const footerNavItems: NavItem[] = [
     {
         title: 'Users',
         url: '/users',
-        icon: User2,
+        icon: Users2Icon,
     },
     {
         title: 'Profile',

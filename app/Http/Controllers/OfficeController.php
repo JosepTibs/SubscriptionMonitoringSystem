@@ -20,7 +20,6 @@ class OfficeController extends Controller
     public function index(): Response
     {
         $offices = Office::query()
-            ->withCount('subscriptions')
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();

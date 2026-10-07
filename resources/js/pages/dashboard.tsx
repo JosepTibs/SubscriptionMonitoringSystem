@@ -16,6 +16,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 interface DashboardStats {
     active: number;
     expiring_soon: number;
+    pending_request: number;
     overdue: number;
     total_cost: string;
 }
@@ -43,13 +44,21 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-                <div className="grid auto-rows-min gap-4 md:grid-cols-4">
+                <div className="grid auto-rows-min gap-4 md:grid-cols-5">
                     <Card>
                         <CardHeader className="pb-2">
                             <CardTitle className="text-muted-foreground text-sm font-medium">Active</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold">{stats.active}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-muted-foreground text-sm font-medium">Pending Approvalsd</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-2xl font-bold">{stats.pending_request}</p>
                         </CardContent>
                     </Card>
                     <Card>

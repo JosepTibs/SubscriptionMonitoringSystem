@@ -18,9 +18,11 @@ class DashboardController extends Controller
         $inSixtyDays = $today->copy()->addDays(60);
 
         $baseQuery = Subscription::query()->whereNot('status', 'cancelled');
+        
 
         $stats = [
             'active' => (clone $baseQuery)->where('status', 'active')->count(),
+            'pending_request' => (clone $baseQuery)->where('status', 'pending_approval')->count(),
             'expiring_soon' => (clone $baseQuery)
                 ->where('status', 'active')
                 ->whereBetween('renewal_date', [$today->toDateString(), $inSixtyDays->toDateString()])
@@ -33,7 +35,7 @@ class DashboardController extends Controller
         ];
 
         $dueInOneMonth = Subscription::query()
-            ->with(['office', 'owner'])
+            ->with(['owner'])
             ->where('status', 'active')
             ->where('renewal_date', '<=', $inSixtyDays->toDateString())
             ->orderBy('renewal_date')
@@ -44,7 +46,7 @@ class DashboardController extends Controller
             });
 
         $dueInTwoMonths = Subscription::query()
-            ->with(['office', 'owner'])
+            ->with(['owner'])
             ->where('status', 'active')
             ->where('renewal_date', '<=', $inSixtyDays->toDateString())
             ->orderBy('renewal_date')

@@ -39,11 +39,6 @@ class Office extends Model
         $query->where('is_active', true)->orderBy('sort_order')->orderBy('id');
     }
 
-    public function subscriptions(): HasMany
-    {
-        return $this->hasMany(Subscription::class);
-    }
-
     /**
      * Every step of every approval request that passed through this office —
      * the office's history of handling subscriptions.

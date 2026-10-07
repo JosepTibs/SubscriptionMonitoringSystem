@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalRequest;
-use App\Models\Office;
 use App\Models\Owner;
 use App\Models\Subscription;
 use App\Models\User;
@@ -28,16 +27,47 @@ class SubscriptionController extends Controller
     public function index(Request $request): Response
     {
         $today = Carbon::today();
+
         $show = $request->input('show', 'active');
+        $search = trim((string) $request->input('search', ''));
+        $status = $request->filled('status') && $request->status !== 'all'
+            ? $request->status
+            : null;
+        $due = $request->filled('due') && $request->due !== 'all'
+            ? $request->due
+            : null;
+        $ownerId = $request->filled('owner_id') && $request->owner_id !== 'all'
+            ? (int) $request->owner_id
+            : null;
+
+        $subscription_count = Subscription::count();
 
         $subscriptions = Subscription::query()
             ->when($show === 'archived', fn (Builder $query) => $query->archived(), fn (Builder $query) => $query->notArchived())
             ->where('status', 'not like', '%pending%')
-            ->with('office', 'owner')
+            ->when($search !== '', fn (Builder $query) => $query
+                ->where(fn (Builder $query) => $query
+                    ->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('provider', 'like', '%'.$search.'%')))
+            ->when($status !== null, fn (Builder $query) => $query
+                ->where('status', $status))
+            ->when($ownerId !== null, fn (Builder $query) => $query
+                ->where('owner_id', $ownerId))
+            ->when($due !== null, fn (Builder $query) => match ($due) {
+                'overdue' => $query
+                    ->whereNotNull('renewal_date')
+                    ->where('renewal_date', '<', $today),
+                'next_30' => $query
+                    ->whereBetween('renewal_date', [$today, $today->copy()->addDays(30)]),
+                'next_90' => $query
+                    ->whereBetween('renewal_date', [$today, $today->copy()->addDays(90)]),
+                default => $query,
+            })
+            ->with('owner')
             // Subscriptions still travelling an approval chain carry no dates
             // yet, so they sit at the bottom until their dates are recorded.
             ->orderByRaw('renewal_date IS NULL')
-            ->orderBy('renewal_date')
+            ->orderBy('name')
             ->get()
             ->each(function (Subscription $subscription) use ($today): void {
                 $subscription->days_until_renewal = $subscription->renewal_date === null
@@ -47,7 +77,11 @@ class SubscriptionController extends Controller
 
         return Inertia::render('subscriptions/index', [
             'subscriptions' => $subscriptions,
-            'filters' => ['show' => $show],
+            'subscription_count' => $subscription_count,
+            'filters' => [
+                ...$request->only(['search', 'status', 'due', 'owner_id']),
+                'show' => $show,
+            ],
             // The create sheet renders the shared subscription form, so the
             // list needs the same option sets the create page was given.
             ...$this->formOptions(),
@@ -132,7 +166,6 @@ class SubscriptionController extends Controller
     public function show(Subscription $subscription): Response
     {
         $subscription->load([
-            'office',
             'owner',
             'renewals.reviewer',
             'approvalRequests.flow',
@@ -165,7 +198,6 @@ class SubscriptionController extends Controller
      */
     public function edit(Subscription $subscription): Response
     {
-        $offices = Office::query()->orderBy('name')->get();
 
         return Inertia::render('subscriptions/edit', [
             'subscription' => [
@@ -177,13 +209,11 @@ class SubscriptionController extends Controller
                 'billing_interval_unit' => $subscription->billing_interval_unit,
                 'start_date' => $subscription->start_date?->format('Y-m-d'),
                 'renewal_date' => $subscription->renewal_date?->format('Y-m-d'),
-                'office_id' => $subscription->office_id,
                 'owner_id' => $subscription->owner_id,
                 'approval_flow_id' => $subscription->approval_flow_id,
                 'status' => $subscription->status,
                 'description' => $subscription->description,
             ],
-            'offices' => $offices,
             'owners' => Owner::query()->orderBy('name')->get(),
             'approval_flows' => ApprovalFlow::query()->orderBy('name')->get(),
         ]);
@@ -330,7 +360,6 @@ class SubscriptionController extends Controller
     private function formOptions(): array
     {
         return [
-            'offices' => Office::query()->orderBy('name')->get(),
             'owners' => Owner::query()->orderBy('name')->get(),
             'approval_flows' => ApprovalFlow::query()->orderBy('name')->get(),
         ];
@@ -368,7 +397,6 @@ class SubscriptionController extends Controller
             'renewal_date' => $datesOptional
                 ? ['nullable', 'date', 'after_or_equal:start_date']
                 : ['required', 'date', 'after_or_equal:start_date'],
-            'office_id' => ['nullable', 'integer', 'exists:offices,id'],
             'owner_id' => ['nullable', 'integer', 'exists:owners,id'],
             'status' => ['required', 'in:active,expired,cancelled,suspended,pending_approval'],
             'approval_flow_id' => ['nullable', 'integer', 'exists:approval_flows,id'],

@@ -28,7 +28,6 @@ class ApprovalFlowController extends Controller
         return Inertia::render('offices/index', [
             'flows' => $flows,
             'offices' => Office::query()
-                ->withCount('subscriptions')
                 ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get(),

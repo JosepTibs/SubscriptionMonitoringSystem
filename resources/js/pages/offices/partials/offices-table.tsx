@@ -70,11 +70,11 @@ export default function OfficesTable({ offices, onCreate, onEdit }: OfficesTable
 
                                 return (
                                     <TableRow key={office.id} className={office.is_active ? '' : 'opacity-60'}>
-                                        <Link href={route('offices.show', office.id)} title="View office history">
                                             <TableCell className="font-medium transition-all hover:font-bold hover:underline">
+                                        <Link href={route('offices.show', office.id)} title="View office history">
                                                 {office.name}
-                                            </TableCell>
                                         </Link>
+                                            </TableCell>
                                         <TableCell className="text-muted-foreground max-w-xs truncate text-sm">{office.description ?? '—'}</TableCell>
                                         <TableCell className="text-center">{office.subscriptions_count ?? 0}</TableCell>
                                         <TableCell className="text-center">

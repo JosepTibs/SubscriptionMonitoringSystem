@@ -1,0 +1,24 @@
+
+  ...............⨯.
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\OfficeTest > office show lists the subscriptions assigned to it               QueryException   
+  SQLSTATE[HY000]: General error: 1 table subscriptions has no column named office_id (Connection: sqlite, Database: :memory:, SQL: insert into "subscriptions" ("provider", "name", "cost", "billing_interval", "billing_interval_unit", "start_date", "renewal_date", "status", "description", "office_id", "updated_at", "created_at") values (O'Reilly Group, eveniet nihil veritatis, 28208.13, 1, month, 2026-05-03 13:14:26, 2026-05-03 13:14:26, active, Occaecati at optio deserunt aut., 1, 2026-10-07 09:50:18, 2026-10-07 09:50:18))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:578
+    574▕             if ($this->pretending()) {
+    575▕                 return true;
+    576▕             }
+    577▕ 
+  ➜ 578▕             $statement = $this->getPdo()->prepare($query);
+    579▕ 
+    580▕             $this->bindValues($statement, $this->prepareBindings($bindings));
+    581▕ 
+    582▕             $this->recordsHaveBeenModified();
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:578
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:827
+
+
+  Tests:    1 failed, 16 passed (142 assertions)
+  Duration: 4.28s
+

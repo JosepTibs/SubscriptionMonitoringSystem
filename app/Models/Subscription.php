@@ -24,18 +24,12 @@ class Subscription extends Model
             'billing_interval_unit',
             'start_date',
             'renewal_date',
-            'office_id',
             'owner_id',
             'status',
             'archived_at',
             'approval_flow_id',
             'description',
         ];
-
-    public function office(): BelongsTo
-    {
-        return $this->belongsTo(Office::class);
-    }
 
     public function owner(): BelongsTo
     {

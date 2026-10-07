@@ -159,13 +159,14 @@ function NameField({ field, label, placeholder, draft, setDraft, error, disabled
                 disabled={disabled}
                 onChange={(event) => setDraft((previous) => ({ ...previous, [field]: event.target.value }))}
                 onBlur={onBlur}
-                onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                        // The row is recorded in full rather than on one field,
-                        // so Enter cannot leave a half-saved step behind.
-                        event.preventDefault();
-                        onEnter();
-                    }
+                onKeyDown={(e) => {
+                    if (e.key !== 'Enter') {
+                        return;
+                    }               
+                    e.preventDefault();
+                    // Same as leaving the field: stage only.
+                    // Save explicitly with the check button.
+                    e.currentTarget.blur();
                 }}
             />
             <InputError message={error} />

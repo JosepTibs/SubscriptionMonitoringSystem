@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalRequestStep;
+use App\Models\Subscription;
 use App\Models\Office;
 use App\Models\Owner;
 use App\Services\ApprovalChain;
@@ -45,10 +46,10 @@ class ApprovalRequestController extends Controller
 
         $show = $request->input('show', 'active');
 
+        $request_count = Subscription::query()->where('status', 'pending_approval')->count();
         $requests = ApprovalRequest::query()
             ->when($show === 'archived', fn (Builder $query) => $query->archived(), fn (Builder $query) => $query->notArchived())
             ->with([
-                'subscription.office',
                 'subscription.owner',
                 'flow',
                 'currentOffice',
@@ -70,6 +71,7 @@ class ApprovalRequestController extends Controller
             ->withQueryString();
 
         return Inertia::render('approvals/index', [
+            'request_count' => $request_count,
             'requests' => $requests,
             'offices' => Office::ordered()->get(['id', 'name']),
             // Feeds the office select inside the create sheet. The other two
