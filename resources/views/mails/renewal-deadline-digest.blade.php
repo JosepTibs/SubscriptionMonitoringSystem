@@ -48,7 +48,7 @@
                         </td>
                         <td style="border: 1px solid #d1d5db;">{{ $subscription->days_remaining }}</td>
                         <td style="border: 1px solid #d1d5db;">{{ $subscription->cost }}</td>
-                        <td style="border: 1px solid #d1d5db;">{{ $subscription->owner ?? '—' }}</td>
+                        <td style="border: 1px solid #d1d5db;">{{ $subscription->owner->name ?? '—' }}</td>
                     </tr>
                 @endforeach
             </tbody>

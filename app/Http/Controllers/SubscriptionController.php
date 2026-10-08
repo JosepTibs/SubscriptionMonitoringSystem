@@ -40,7 +40,7 @@ class SubscriptionController extends Controller
             ? (int) $request->owner_id
             : null;
 
-        $subscription_count = Subscription::count();
+        $subscription_count = Subscription::whereNull('archived_at')->count();
 
         $subscriptions = Subscription::query()
             ->when($show === 'archived', fn (Builder $query) => $query->archived(), fn (Builder $query) => $query->notArchived())

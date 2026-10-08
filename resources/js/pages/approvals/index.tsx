@@ -16,7 +16,7 @@ import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Approvals', href: '/approvals' },
+    { title: 'Requests', href: '/approvals' },
 ];
 
 const allValue = 'all';
@@ -164,8 +164,7 @@ export default function ApprovalsIndex({requests, offices, owners, approval_flow
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <Heading
                         title="Approvals"
-                        description="Requests still travelling the chain, oldest first. Your account is not tied to an office yet, so pick an office to narrow the queue."
-                    />
+                        />
                     
                     <CreateSubscriptionSheet mode="for_approval" owners={owners} approvalFlows={approval_flows} />
                 </div>

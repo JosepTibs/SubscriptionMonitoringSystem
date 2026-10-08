@@ -50,10 +50,10 @@ export default function ShowSubscription({
     // everything else returns to the subscription list.
     const isFromApprovals = subscription.status === 'pending_approval';
     const listCrumb: BreadcrumbItem = isFromApprovals
-        ? { title: 'Approvals', href: '/approvals' }
+        ? { title: 'Requests', href: '/approvals' }
         : { title: 'Subscriptions', href: '/subscriptions' };
     const backHref = isFromApprovals ? route('approvals.index') : route('subscriptions.index');
-    const backLabel = isFromApprovals ? 'Back to Approvals' : 'Back to Subscriptions';
+    const backLabel = isFromApprovals ? 'Back to Requests' : 'Back to Subscriptions';
 
     // A chain that has finished leaves a procurement subscription active but
     // still dateless - the dates are recorded by hand afterwards, so the

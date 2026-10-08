@@ -18,7 +18,7 @@ Route::redirect('/', '/login')->name('home');
 Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('activity-logs', [ActivityLogsController::class, 'index'])->name('activity-logs.index');
-    Route::resource('users', UserController::class);
+    Route::resource('users', UserController::class)->except(['show', 'edit', 'create']);
     Route::patch('users/{user}/archive', [UserController::class, 'archive'])->name('users.archive');
     Route::patch('users/{user}/unarchive', [UserController::class, 'unarchive'])->name('users.unarchive');
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');

@@ -5,26 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import CreateUserSheet from '@/components/users/create-user-sheet';
+import CreateUserSheet, { type SheetUserData } from '@/components/users/create-user-sheet';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import {
-    columnFilteringFeature,
-    columnVisibilityFeature,
-    createColumnHelper,
-    createFilteredRowModel,
-    createPaginatedRowModel,
-    createSortedRowModel,
-    globalFilteringFeature,
-    rowPaginationFeature,
-    rowSortingFeature,
-    tableFeatures,
-    useTable,
-    type FilterFn,
-    type SortingState,
+import { Head, router, usePage } from '@inertiajs/react';
+import { columnFilteringFeature, columnVisibilityFeature, createColumnHelper, createFilteredRowModel, createPaginatedRowModel, createSortedRowModel, globalFilteringFeature, rowPaginationFeature, rowSortingFeature, tableFeatures, useTable, type FilterFn, type SortingState,
 } from '@tanstack/react-table';
-import { ArrowDown, ArrowUp, ArrowUpDown, Archive, ArchiveRestore, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Archive, ArchiveRestore, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -121,26 +108,48 @@ export default function UsersIndex() {
     const [roleFilter, setRoleFilter] = useState(filters.role ?? '');
     const [sorting, setSorting] = useState<SortingState>([]);
     const [createOpen, setCreateOpen] = useState(false);
-    const [editOpen, setEditOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState<UserItem | null>(null);
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [sheetMode, setSheetMode] = useState<'view' | 'edit'>('view');
+    const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+
+    function toSheetUser(user: UserItem): SheetUserData {
+        return {
+            id: user.id,
+            username: user.username,
+            fname: user.fname,
+            mname: user.mname,
+            lname: user.lname,
+            sname: user.sname,
+            email: user.email,
+            email_verified_at: user.email_verified_at,
+            role_id: user.role?.id ?? null,
+        };
+    }
+
+    const openDetailSheet = useCallback((user: UserItem) => {
+        setSelectedUser(user);
+        setSheetMode('view');
+        setSheetOpen(true);
+    }, []);
+
+    const openEditSheet = useCallback((user: UserItem) => {
+        setSelectedUser(user);
+        setSheetMode('edit');
+        setSheetOpen(true);
+    }, []);
+
+    const handleSheetOpenChange = useCallback((open: boolean) => {
+        setSheetOpen(open);
+        if (!open) {
+            setSelectedUser(null);
+        }
+    }, []);
 
     // Apply role filter to data
     const filteredData = useMemo(() => {
         if (!roleFilter || roleFilter === 'all') return users;
         return users.filter((user) => user.role?.id === Number(roleFilter));
     }, [users, roleFilter]);
-
-    const openEditSheet = useCallback((user: UserItem) => {
-        setEditingUser(user);
-        setEditOpen(true);
-    }, []);
-
-    const handleEditOpenChange = useCallback((open: boolean) => {
-        setEditOpen(open);
-        if (!open) {
-            setEditingUser(null);
-        }
-    }, []);
 
     const columns = useMemo(
         () =>
@@ -162,9 +171,14 @@ export default function UsersIndex() {
                         );
                     },
                     cell: ({ row, getValue }) => (
-                        <Link href={`/users/${row.original.id}`} className="font-medium hover:underline">
+                        <button
+                            type="button"
+                            className="font-medium hover:underline"
+                            id={`view-user-${row.original.id}`}
+                            onClick={() => openDetailSheet(row.original)}
+                        >
                             {getValue()}
-                        </Link>
+                        </button>
                     ),
                 }),
 
@@ -188,9 +202,13 @@ export default function UsersIndex() {
                     cell: ({ row }) => {
                         const fullName = formatFullName(row.original);
                         return (
-                            <Link href={`/users/${row.original.id}`} className="font-medium hover:underline">
+                            <button
+                                type="button"
+                                className="font-medium hover:underline"
+                                onClick={() => openDetailSheet(row.original)}
+                            >
                                 {fullName}
-                            </Link>
+                            </button>
                         );
                     },
                 }),
@@ -264,6 +282,9 @@ export default function UsersIndex() {
                         const user = row.original;
                         return (
                             <div className="flex justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => openDetailSheet(user)}>
+                                    <Eye className="h-4 w-4" />
+                                </Button>
                                 {canManage && (
                                     <Button variant="outline" size="sm" onClick={() => openEditSheet(user)}>
                                         <Pencil className="h-4 w-4" />
@@ -298,7 +319,7 @@ export default function UsersIndex() {
                     },
                 }),
             ]),
-        [canManage, archivedView, openEditSheet],
+        [canManage, archivedView, openEditSheet, openDetailSheet],
     );
 
     const table = useTable({
@@ -365,25 +386,16 @@ export default function UsersIndex() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Users" />
-            <CreateUserSheet open={createOpen} onOpenChange={setCreateOpen} roles={roles} />
-            {editingUser && (
-                <CreateUserSheet
-                    key={editingUser.id}
-                    open={editOpen}
-                    onOpenChange={handleEditOpenChange}
-                    roles={roles}
-                    user={{
-                        id: editingUser.id,
-                        username: editingUser.username,
-                        fname: editingUser.fname,
-                        mname: editingUser.mname,
-                        lname: editingUser.lname,
-                        sname: editingUser.sname,
-                        email: editingUser.email,
-                        role_id: editingUser.role?.id ?? null,
-                    }}
-                />
-            )}
+            <CreateUserSheet open={createOpen} onOpenChange={setCreateOpen} roles={roles} mode="create" />
+            <CreateUserSheet
+                key={selectedUser?.id ?? 'none'}
+                open={sheetOpen}
+                onOpenChange={handleSheetOpenChange}
+                roles={roles}
+                user={selectedUser ? toSheetUser(selectedUser) : null}
+                mode={sheetMode}
+                onSwitchToEdit={() => setSheetMode('edit')}
+            />
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold">Users</h1>

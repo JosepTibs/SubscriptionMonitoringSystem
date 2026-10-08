@@ -55,7 +55,7 @@ export default function Dashboard({ stats, dueInOneMonth }: { stats: DashboardSt
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-muted-foreground text-sm font-medium">Pending Approvalsd</CardTitle>
+                            <CardTitle className="text-muted-foreground text-sm font-medium">Pending Approvals</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold">{stats.pending_request}</p>

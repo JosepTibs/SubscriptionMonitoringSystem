@@ -346,7 +346,7 @@ export default function SubscriptionsIndex({
                 </Card>
 
                 <Card className="overflow-x-auto py-0">
-                    <h1 className="mt-6 mx-4 text-xl font-semibold">Subscription Count:  {subscription_count}</h1>
+                    <h1 className="mt-6 mx-4 text-xl font-semibold">Total Subscriptions:  {subscription_count}</h1>
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="text-muted-foreground border-b text-left">

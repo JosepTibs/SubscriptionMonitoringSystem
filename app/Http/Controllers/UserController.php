@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
+
 class UserController extends Controller
 {
     public function index(Request $request)
@@ -52,15 +53,6 @@ class UserController extends Controller
         ]);
     }
 
-    public function create()
-    {
-        $allRoles = $this->assignableRoles();
-
-        return Inertia::render('users/create', [
-            'roles' => $allRoles,
-        ]);
-    }
-
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -100,49 +92,6 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'User created successfully.');
     }
 
-    public function show(User $user)
-    {
-        $user->load('roles');
-
-        return Inertia::render('users/show', [
-            'user' => [
-                'id' => $user->id,
-                'username' => $user->username,
-                'fname' => $user->fname,
-                'mname' => $user->mname,
-                'lname' => $user->lname,
-                'sname' => $user->sname,
-                'email' => $user->email,
-                'role' => $user->roles->first()?->only(['id', 'name']),
-                'role_id' => $user->roles->first()?->id,
-                'created_at' => $user->created_at->format('Y-m-d'),
-
-            ],
-            // Roles available to the edit sheet (same rules as the edit page).
-            'roles' => $this->assignableRoles(),
-        ]);
-    }
-
-    public function edit(User $user)
-    {
-        $user->load('roles');
-        $allRoles = $this->assignableRoles();
-
-        return Inertia::render('users/edit', [
-            'user' => [
-                'id' => $user->id,
-                'username' => $user->username,
-                'fname' => $user->fname,
-                'mname' => $user->mname,
-                'lname' => $user->lname,
-                'sname' => $user->sname,
-                'email' => $user->email,
-                'role_id' => $user->roles->first()?->id,
-            ],
-            'roles' => $allRoles,
-        ]);
-    }
-
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
@@ -152,6 +101,7 @@ class UserController extends Controller
             'lname' => 'required|string|max:255',
             'sname' => 'nullable|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'email_verified_at' => 'nullable|date',
             'password' => 'nullable|string|min:8|confirmed',
             'role_id' => 'required|exists:roles,id',
         ]);
@@ -167,6 +117,7 @@ class UserController extends Controller
             'lname' => $validated['lname'],
             'sname' => $validated['sname'],
             'email' => $validated['email'],
+            'email_verified_at' => $validated['email_verified_at'] ?? null,
         ]);
 
         if (! empty($validated['password'])) {
