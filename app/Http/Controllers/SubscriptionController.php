@@ -168,12 +168,20 @@ class SubscriptionController extends Controller
         $subscription->load([
             'owner',
             'renewals.reviewer',
+            'renewals.approvalRequest.currentOffice',
             'approvalRequests.flow',
             'approvalRequests.currentOffice',
             'approvalRequests.renewal',
             'approvalRequests.steps.office',
             'approvalRequests.steps.actor',
         ]);
+
+        // One renewal chain travels at a time: the review sheet disables
+        // itself while this request is still in flight (the store route
+        // enforces the same rule, so a direct POST cannot bypass it).
+        $pendingRenewalRequest = $subscription->approvalRequests
+            ->first(fn (ApprovalRequest $request): bool => $request->type === ApprovalRequest::TYPE_RENEWAL
+                && $request->status === ApprovalRequest::STATUS_IN_PROGRESS);
 
         $suggestedRenewalDate = $subscription->renewal_date === null
             ? null
@@ -185,6 +193,9 @@ class SubscriptionController extends Controller
             ...$this->formOptions(),
             'subscription' => $subscription,
             'approval_requests' => $subscription->approvalRequests,
+            'has_pending_renewal' => $pendingRenewalRequest instanceof ApprovalRequest,
+            'pending_renewal_request_id' => $pendingRenewalRequest?->id,
+            'pending_renewal_office' => $pendingRenewalRequest?->currentOffice?->name,
             'days_until_renewal' => $subscription->renewal_date === null
                 ? null
                 : (int) Carbon::today()->diffInDays($subscription->renewal_date, false),

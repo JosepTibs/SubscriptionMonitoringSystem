@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Renewal extends Model
 {
@@ -26,6 +26,12 @@ class Renewal extends Model
     public function subscription(): BelongsTo
     {
         return $this->belongsTo(Subscription::class);
+    }
+
+    public function approvalRequest(): HasOne
+    {
+        // ApprovalRequest.renewal_id points back at this row.
+        return $this->hasOne(ApprovalRequest::class, 'renewal_id');
     }
 
     public function reviewer(): BelongsTo

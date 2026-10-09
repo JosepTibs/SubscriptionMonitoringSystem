@@ -179,7 +179,9 @@ class ApprovalChain
 
     /**
      * Apply the linked renewal's decision to the subscription. Null proposals
-     * (a "keep pending" review) leave the existing values untouched.
+     * leave the existing values untouched; the renewal row itself always
+     * records the chain outcome so the history table can show
+     * decision + chain status instead of a frozen intent.
      *
      * @return array<string, mixed> the values applied (for the audit row)
      */
@@ -199,11 +201,16 @@ class ApprovalChain
             $attributes['status'] = 'active';
         }
 
-        if ($attributes === []) {
-            return ['decision' => $renewal->decision];
+        if ($attributes !== []) {
+            $subscription->update($attributes);
         }
 
-        $subscription->update($attributes);
+        // The chain outcome lands on the renewal row too: a completed
+        // proposal becomes "renewed" (applied), so the history table shows
+        // the outcome instead of the submission-time intent.
+        if ($renewal->decision !== 'renewed') {
+            $renewal->update(['decision' => 'renewed']);
+        }
 
         return $attributes;
     }

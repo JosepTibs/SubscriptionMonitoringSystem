@@ -120,8 +120,10 @@ export interface Renewal {
     reviewed_at: string | null;
     remarks: string | null;
     reviewer?: User | null;
+    approval_request?: ApprovalRequest | null;
+    approvalRequest?: ApprovalRequest | null;
+    approval_request_id?: number | null;
 }
-
 export interface Subscription {
     id: number;
     provider: string;

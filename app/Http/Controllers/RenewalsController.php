@@ -19,10 +19,10 @@ class RenewalsController extends Controller
     /**
      * Record a renewal review decision for a subscription.
      *
-     * "renewed" and "pending" decisions open a renewal approval request, so the
-     * proposed date/cost only reach the subscription when the chain completes
-     * (see ApprovalChain::complete). "cancelled" needs no approval and applies
-     * immediately.
+     * "renewed" opens a renewal approval request, so the proposed date/cost
+     * only reach the subscription when the chain completes
+     * (see ApprovalChain::complete). "pending" defers the decision without
+     * opening a chain; "cancelled" needs no approval and applies immediately.
      */
     public function store(Request $request, Subscription $subscription): RedirectResponse
     {
@@ -33,7 +33,16 @@ class RenewalsController extends Controller
             'remarks' => ['nullable', 'string'],
         ]);
 
-        $requiresApproval = $validated['decision'] !== 'cancelled';
+        // One renewal chain travels at a time: a second proposal while the
+        // first is still in flight would race on complete (last-writer-wins
+        // on cost/date), so reject it and point at the pending request.
+        if ($validated['decision'] === 'renewed' && $this->hasPendingRenewal($subscription)) {
+            throw ValidationException::withMessages([
+                'decision' => 'A renewal is already travelling the approval chain. Complete or return it before recording another.',
+            ]);
+        }
+
+        $requiresApproval = $validated['decision'] === 'renewed';
         $flow = $requiresApproval ? ApprovalChain::flowFor($subscription) : null;
 
         if ($requiresApproval && $flow === null) {
@@ -60,6 +69,23 @@ class RenewalsController extends Controller
                 return;
             }
 
+            // Deferred ("pending") reviews record a note only: no chain is
+            // opened and the subscription keeps its status/cost/date.
+            if ($validated['decision'] !== 'cancelled') {
+                AuditTrail::record(
+                    user: $request->user(),
+                    action: 'Renewal Deferred',
+                    auditable: $subscription,
+                    newValues: [
+                        'decision' => $renewal->decision,
+                        'remarks' => $renewal->remarks,
+                    ],
+                    description: 'Renewal review for "'.$subscription->name.'" deferred',
+                );
+
+                return;
+            }
+
             // Nothing to approve: the cancellation applies straight away.
             $subscription->update(['status' => 'cancelled']);
 
@@ -81,6 +107,19 @@ class RenewalsController extends Controller
         });
 
         return to_route('subscriptions.show', $subscription);
+    }
+
+    /**
+     * Whether a renewal chain for this subscription is still travelling.
+     * Deferred ("pending") reviews open no chain, so only "renewed" rows
+     * linked to an in-progress request count.
+     */
+    private function hasPendingRenewal(Subscription $subscription): bool
+    {
+        return $subscription->approvalRequests()
+            ->where('type', ApprovalRequest::TYPE_RENEWAL)
+            ->where('status', ApprovalRequest::STATUS_IN_PROGRESS)
+            ->exists();
     }
 
     /**

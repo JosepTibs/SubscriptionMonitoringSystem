@@ -254,6 +254,7 @@ export default function SubscriptionsIndex({
                 
                     <div className="flex items-center gap-2">
                         <Button
+                            className='border-black!'
                             variant={show === 'archived' ? 'default' : 'outline'}
                             onClick={() =>
                                 applyFilters({
@@ -415,7 +416,7 @@ export default function SubscriptionsIndex({
                                         <td className="px-4 py-3">{formatPeso(subscription.cost)}</td>
                                         <td className="px-4 py-3">{formatDate(subscription.renewal_date)}</td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 ">
                                                 <StatusBadge status={displayStatus(subscription)} />
                                                 {show === 'archived' && <Badge variant="outline">Archived</Badge>}
                                             </div>

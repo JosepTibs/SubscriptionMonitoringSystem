@@ -14,13 +14,25 @@ interface RenewalReviewSheetProps {
     subscription: Subscription;
     suggested_renewal_date: string;
     suggested_cost: string;
+    /** Blocked while another renewal chain is still travelling. */
+    disabled?: boolean;
+    disabledReason?: string;
+    /** Lets the detail page jump to the right tab after recording. */
+    onRecorded?: (decision: string) => void;
 }
 
-export default function RenewalReviewSheet({ subscription, suggested_renewal_date, suggested_cost }: RenewalReviewSheetProps) {
+export default function RenewalReviewSheet({
+    subscription,
+    suggested_renewal_date,
+    suggested_cost,
+    disabled = false,
+    disabledReason,
+    onRecorded,
+}: RenewalReviewSheetProps) {
     const [open, setOpen] = useState(false);
 
     const { data, setData, post, processing, errors, reset } = useForm({
-        decision: 'pending',
+        decision: 'renewed',
         new_renewal_date: suggested_renewal_date,
         new_cost: suggested_cost,
         remarks: '',
@@ -32,21 +44,41 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
         post(route('subscriptions.renewals.store', subscription.id), {
             onSuccess: () => {
                 setOpen(false);
+                onRecorded?.(data.decision);
                 reset();
             },
         });
     };
 
+    const formatCost = (value: string) => {
+        // Remove commas
+        const clean = value.replace(/,/g, '');
+
+        // Allow empty value
+        if (!clean) return '';
+
+        // Split integer and decimal parts
+        const [integer, decimal] = clean.split('.');
+
+        // Add commas to integer part
+        const formattedInteger = Number(integer || '0').toLocaleString('en-PH');
+
+        return decimal !== undefined ? `${formattedInteger}.${decimal.slice(0, 2)}` : formattedInteger;
+    };
+
     return (
         <Sheet open={open} onOpenChange={setOpen}>
-            <Button onClick={() => setOpen(true)}>Review Renewal</Button>
+            <Button onClick={() => setOpen(true)} disabled={disabled} title={disabledReason}>
+                Review Renewal
+            </Button>
 
             <SheetContent side="right" className="flex flex-col gap-4 overflow-y-auto sm:max-w-lg">
                 <SheetHeader>
                     <SheetTitle>Review Renewal — {subscription.name}</SheetTitle>
                     <SheetDescription>
-                        Record a decision for this subscription's upcoming renewal. Renewed and pending decisions travel the approval chain and only
-                        apply once the final office approves; a cancelled decision applies immediately.
+                        Record a decision for this subscription's upcoming renewal. A renewed decision travels the approval chain and only
+                        applies once the final office approves; keeping it pending defers the decision without opening a chain,
+                        and a cancelled decision applies immediately.
                     </SheetDescription>
                 </SheetHeader>
 
@@ -82,6 +114,9 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
                             </SelectContent>
                         </Select>
                         <InputError message={errors.decision} />
+                        <p className="text-muted-foreground text-xs">
+                            Renewed travels the chain. Keep Pending records a note without opening a chain.
+                        </p>
                     </div>
 
                     <div className="grid gap-2">
@@ -96,15 +131,23 @@ export default function RenewalReviewSheet({ subscription, suggested_renewal_dat
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="new_cost">New cost (₱)</Label>
-                        <Input
-                            id="new_cost"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={data.new_cost}
-                            onChange={(e) => setData('new_cost', e.target.value)}
-                        />
+                        <Label htmlFor="new_cost">New Cost</Label>
+                    <Input
+                        id="cost"
+                        type="text"
+                        inputMode="decimal"
+                        value={formatCost(data.new_cost)}
+                        onChange={(e) => {
+                            const value = e.target.value.replace(/,/g, '');
+
+                            // Allow only numbers with an optional decimal
+                            if (/^\d*\.?\d{0,2}$/.test(value)) {
+                                setData('new_cost', value);
+                            }
+                        }}
+                        placeholder="50,000.00"
+                        required
+                    />
                         <InputError message={errors.new_cost} />
                     </div>
 

@@ -6,11 +6,14 @@ import StatusBadge from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
 import { billingIntervalLabel, formatDate, formatPeso, toDateInputValue } from '@/lib/format';
-import { type ApprovalFlow, type ApprovalRequest, type BreadcrumbItem, type Owner, type Subscription } from '@/types';
+import { type ApprovalFlow, type ApprovalRequest, type BreadcrumbItem, type Owner, type Renewal, type Subscription } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, Check, Pencil, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Pencil, X } from 'lucide-react';
 import { useRef, useState, type FormEventHandler, type ReactNode } from 'react';
 import SubscriptionForm, { type SubscriptionFormData } from './partials/subscription-form';
 
@@ -25,9 +28,118 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
     );
 }
 
+/**
+ * Chain status for one renewal row. Deferred ("pending") reviews open no
+ * chain, so they show "No chain"; a linked request shows its live status
+ * instead of the frozen submission-time decision.
+ */
+function chainForRenewal(renewal: Renewal): string | null {
+    // Serialized as approval_request (snake_case); camelCase kept as fallback.
+    const status = renewal.approval_request?.status ?? renewal.approvalRequest?.status ?? null;
+
+    if (status === 'in_progress') {
+        return 'Travelling';
+    }
+
+    if (status === 'completed') {
+        return 'Applied';
+    }
+
+    if (status === 'returned' || status === 'rejected') {
+        return status === 'returned' ? 'Returned' : 'Rejected';
+    }
+
+    return renewal.decision === 'pending' ? null : 'Recorded';
+}
+
+function renewalRequestId(renewal: Renewal): number | null {
+    return renewal.approval_request?.id ?? renewal.approvalRequest?.id ?? renewal.approval_request_id ?? null;
+}
+
+function ChainBadge({ chain }: { chain: string | null }) {
+    if (chain === null) {
+        return <span className="text-muted-foreground text-xs">No chain (deferred)</span>;
+    }
+
+    return (
+        <Badge variant={chain === 'Travelling' ? 'default' : chain === 'Applied' ? 'secondary' : 'outline'}>{chain}</Badge>
+    );
+}
+
+function RenewalHistoryTable({
+    subscription,
+    onViewChain,
+}: {
+    subscription: Subscription;
+    onViewChain: (requestId: number | null) => void;
+}) {
+    if (!subscription.renewals || subscription.renewals.length === 0) {
+        return <p className="text-muted-foreground py-6 text-center text-sm">No renewals recorded yet.</p>;
+    }
+
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Reviewed</TableHead>
+                    <TableHead>Decision</TableHead>
+                    <TableHead>Date (prev → new)</TableHead>
+                    <TableHead>Cost (prev → new)</TableHead>
+                    <TableHead>Chain</TableHead>
+                    <TableHead className="text-right">Trail</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {subscription.renewals.map((renewal) => {
+                    const chain = chainForRenewal(renewal);
+                    const requestId = renewalRequestId(renewal);
+
+                    return (
+                        <TableRow key={renewal.id}>
+                            <TableCell className="font-medium">#{renewal.id}</TableCell>
+                            <TableCell>
+                                <div>{formatDate(renewal.reviewed_at)}</div>
+                                {renewal.reviewer && <div className="text-muted-foreground text-xs">{renewal.reviewer.name}</div>}
+                            </TableCell>
+                            <TableCell>
+                                <Badge variant="secondary">{renewal.decision}</Badge>
+                                {renewal.remarks && (
+                                    <div className="text-muted-foreground max-w-48 truncate text-xs">{renewal.remarks}</div>
+                                )}
+                            </TableCell>
+                            <TableCell>
+                                {formatDate(renewal.previous_renewal_date)} → <strong>{formatDate(renewal.new_renewal_date)}</strong>
+                            </TableCell>
+                            <TableCell>
+                                {formatPeso(renewal.previous_cost)} → <strong>{formatPeso(renewal.new_cost)}</strong>
+                            </TableCell>
+                            <TableCell>
+                                <ChainBadge chain={chain} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                                {requestId !== null ? (
+                                    <Button variant="outline" size="sm" onClick={() => onViewChain(requestId)}>
+                                        View chain
+                                    </Button>
+                                ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                )}
+                            </TableCell>
+                        </TableRow>
+                    );
+                })}
+            </TableBody>
+        </Table>
+    );
+}
+
 export default function ShowSubscription({
     subscription,
     approval_requests,
+    has_pending_renewal,
+    pending_renewal_request_id,
+    pending_renewal_office,
     days_until_renewal,
     suggested_renewal_date,
     suggested_cost,
@@ -36,6 +148,9 @@ export default function ShowSubscription({
 }: {
     subscription: Subscription;
     approval_requests: ApprovalRequest[];
+    has_pending_renewal: boolean;
+    pending_renewal_request_id: number | null;
+    pending_renewal_office: string | null;
     days_until_renewal: number | null;
     suggested_renewal_date: string | null;
     suggested_cost: string;
@@ -43,6 +158,30 @@ export default function ShowSubscription({
     approval_flows: ApprovalFlow[];
 }) {
     const [isEditing, setIsEditing] = useState(false);
+    const [detailTab, setDetailTab] = useState('details');
+    const [expandedTrailId, setExpandedTrailId] = useState<number | null>(null);
+
+    // Newest chain first (the controller sends latest() ordering): it sits
+    // above the tabs as the working papers, while older chains collapse into
+    // the trail tab. With the single in-flight guard the travelling chain, if
+    // any, is always the newest; otherwise the last completed chain stays
+    // visible instead of going empty.
+    const currentTrail = approval_requests?.[0] ?? null;
+    const previousTrails = approval_requests?.slice(1) ?? [];
+
+    const jumpToTrail = (requestId: number | null | undefined) => {
+        if (requestId === null || requestId === undefined) {
+            return;
+        }
+
+        // The current chain sits above the tabs and is always visible; older
+        // chains live collapsed in the trail tab.
+        if (requestId !== currentTrail?.id) {
+            setExpandedTrailId(requestId);
+        }
+
+        setDetailTab('trail');
+    };
 
     // The detail page is shared: approval queue rows open the same component
     // as the subscription list, so the way back depends on what is on screen.
@@ -149,6 +288,13 @@ export default function ShowSubscription({
                                 subscription={subscription}
                                 suggested_renewal_date={suggested_renewal_date ?? subscription.renewal_date}
                                 suggested_cost={suggested_cost}
+                                disabled={has_pending_renewal}
+                                disabledReason={
+                                    has_pending_renewal
+                                        ? `Renewal #${pending_renewal_request_id ?? ''} is still travelling the chain${pending_renewal_office ? ` (at ${pending_renewal_office})` : ''}. Complete or return it before recording another.`
+                                        : undefined
+                                }
+                                onRecorded={(decision) => setDetailTab(decision === 'cancelled' ? 'renewals' : 'details')}
                             />
                         )}
 
@@ -163,12 +309,36 @@ export default function ShowSubscription({
 
                 {showApprovalCompleted && <ApprovalCompletedBanner onEdit={() => setIsEditing(true)} editing={isEditing} />}
 
-                {approval_requests?.map((request) => (
-                    <ApprovalTrailTable key={request.id} request={request} />
-                ))}
+                {has_pending_renewal && (
+                    <Card className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40">
+                        <CardContent className="py-3 text-sm">
+                            <strong>Renewal #{pending_renewal_request_id} is travelling the chain</strong>
+                            {pending_renewal_office ? ` — currently at ${pending_renewal_office}.` : '.'} Recording
+                            another renewal is blocked until it completes or is returned.
+                        </CardContent>
+                    </Card>
+                )}
 
-                <div className="grid gap-4 md:grid-cols-2">
+                {currentTrail !== null ? (
+                    <ApprovalTrailTable key={currentTrail.id} request={currentTrail} />
+                ) : (
                     <Card>
+                        <CardContent className="text-muted-foreground py-6 text-center text-sm">
+                            No approval chains recorded yet.
+                        </CardContent>
+                    </Card>
+                )}
+
+                <Tabs value={detailTab} onValueChange={setDetailTab}>
+                    <TabsList>
+                        <TabsTrigger value="details">Details</TabsTrigger>
+                        <TabsTrigger value="renewals">Renewals ({subscription.renewals?.length ?? 0})</TabsTrigger>
+                        <TabsTrigger value="trail">Approval trail ({previousTrails.length})</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="details">
+                        <div className="grid gap-4">
+                            <Card>
                         <CardHeader className="flex w-full flex-row items-center justify-between">
                             <CardTitle>Subscription details</CardTitle>
                             {!isEditing ? (
@@ -258,47 +428,82 @@ export default function ShowSubscription({
                             )}
                         </CardContent>
                     </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Renewal history</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {subscription.renewals && subscription.renewals.length > 0 ? (
-                                <div className="space-y-4">
-                                    {subscription.renewals.map((renewal) => (
-                                        <div key={renewal.id} className="rounded-lg border p-3">
-                                            <div className="flex items-center justify-between">
-                                                <Badge variant="secondary">{renewal.decision}</Badge>
-                                                <span className="text-muted-foreground text-xs">{formatDate(renewal.reviewed_at)}</span>
-                                            </div>
-                                            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                                                <span>
-                                                    Previous renewal: <strong>{formatDate(renewal.previous_renewal_date)}</strong>
-                                                </span>
-                                                <span>
-                                                    New renewal: <strong>{formatDate(renewal.new_renewal_date)}</strong>
-                                                </span>
-                                                <span>
-                                                    Previous cost: <strong>{formatPeso(renewal.previous_cost)}</strong>
-                                                </span>
-                                                <span>
-                                                    New cost: <strong>{formatPeso(renewal.new_cost)}</strong>
-                                                </span>
-                                            </div>
-                                            {renewal.remarks && <p className="text-muted-foreground mt-2 text-sm">{renewal.remarks}</p>}
-                                            {renewal.reviewer && (
-                                                <p className="text-muted-foreground mt-1 text-xs">Reviewed by {renewal.reviewer.name}</p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-muted-foreground py-6 text-center text-sm">No renewals recorded yet.</p>
-                            )}
-                        </CardContent>
-                    </Card>
                 </div>
+                    </TabsContent>
+
+                    <TabsContent value="renewals">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Renewal history</CardTitle>
+                                <p className="text-muted-foreground text-sm">
+                                    Current cost {formatPeso(subscription.cost)} is shown once above — this table is
+                                    history and is never summed.
+                                </p>
+                            </CardHeader>
+                            <CardContent>
+                                <RenewalHistoryTable subscription={subscription} onViewChain={jumpToTrail} />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="trail">
+                        <div className="grid gap-4">
+                            {previousTrails.length > 0 ? (
+                                previousTrails.map((request) => {
+                                    const isOpen = expandedTrailId === request.id;
+                                    const chainLabel =
+                                        request.type === 'renewal' && request.renewal_id !== null
+                                            ? `Renewal #${request.renewal_id}`
+                                            : 'Procurement';
+
+                                    return (
+                                        <Collapsible
+                                            key={request.id}
+                                            open={isOpen}
+                                            onOpenChange={(open) => setExpandedTrailId(open ? request.id : null)}
+                                        >
+                                            <Card>
+                                                <CollapsibleTrigger asChild>
+                                                    <button
+                                                        type="button"
+                                                        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm"
+                                                    >
+                                                        <span>
+                                                            <strong>
+                                                                {chainLabel} chain #{request.id}
+                                                            </strong>{' '}
+                                                            <StatusBadge status={request.status} />
+                                                            {request.current_office && (
+                                                                <span className="text-muted-foreground">
+                                                                    {' '}
+                                                                    — at {request.current_office.name}
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                                                    </button>
+                                                </CollapsibleTrigger>
+                                                <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-up-1 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-down-1">
+                                                    <CardContent className="pt-0">
+                                                        <ApprovalTrailTable request={request} />
+                                                    </CardContent>
+                                                </CollapsibleContent>
+                                            </Card>
+                                        </Collapsible>
+                                    );
+                                })
+                            ) : (
+                                <Card>
+                                    <CardContent className="text-muted-foreground py-6 text-center text-sm">
+                                        {currentTrail !== null
+                                            ? 'Only the current chain exists — it is shown open in Details.'
+                                            : 'No approval chains recorded yet.'}
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
             </div>
         </AppLayout>
     );
